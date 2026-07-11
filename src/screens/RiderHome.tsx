@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api, naira, type AvailableJob, type Job } from '../api';
 import type { AppNav } from '../nav';
-import { Button, Card, Mono, PressableScale, Spacer, useToast } from '../ui';
+import { Button, Card, Mono, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
 const ACTIVE = ['ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS', 'EN_ROUTE_DROP', 'ARRIVED', 'AWAITING_CODE'];
@@ -87,15 +87,12 @@ export function RiderHomeTab({ navigation }: { navigation: AppNav }) {
       )}
 
       <Spacer h={16} />
-      <PressableScale onPress={() => navigation.navigate('Kyc')} style={s.link}><Mono style={{ color: t.ink }}>COMPLETE VERIFICATION (KYC)</Mono></PressableScale>
-      <Spacer h={8} />
-      <PressableScale onPress={() => navigation.navigate('Wallet')} style={s.link}><Mono style={{ color: t.ink }}>VIEW WALLET & EARNINGS</Mono></PressableScale>
+      <Button label="Complete verification (KYC)" variant="ghost" onPress={() => navigation.navigate('Kyc')} />
     </ScrollView>
   );
 }
 
 const s = StyleSheet.create({
-  statusBox: { height: 140, borderRadius: 8, backgroundColor: t.ink, alignItems: 'center', justifyContent: 'center', marginVertical: 12 },
+  statusBox: { height: 150, borderRadius: t.radius.md, backgroundColor: t.ink, alignItems: 'center', justifyContent: 'center', marginVertical: 12 },
   statusTxt: { color: '#fff', fontFamily: t.mono, fontSize: 13, letterSpacing: 1 },
-  link: { borderWidth: 1, borderColor: t.line, borderRadius: 8, paddingVertical: 13, alignItems: 'center', backgroundColor: t.bg },
 });

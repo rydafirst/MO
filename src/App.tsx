@@ -13,7 +13,6 @@ import { TrackScreen } from './screens/Track';
 import { RiderJobScreen } from './screens/RiderJob';
 import { KycScreen } from './screens/Kyc';
 import { DisputeScreen } from './screens/Dispute';
-import { WalletScreen } from './screens/Wallet';
 
 export type RootStack = {
   Landing: undefined;
@@ -23,7 +22,6 @@ export type RootStack = {
   RiderJob: { jobId: string };
   Kyc: undefined;
   Dispute: { jobId: string };
-  Wallet: undefined;
 };
 const Stack = createNativeStackNavigator<RootStack>();
 
@@ -48,7 +46,6 @@ export default function App() {
             <Stack.Screen name="RiderJob" component={RiderJobScreen} />
             <Stack.Screen name="Kyc" component={KycScreen} />
             <Stack.Screen name="Dispute" component={DisputeScreen} />
-            <Stack.Screen name="Wallet" component={WalletScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </ToastProvider>

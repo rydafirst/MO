@@ -3,7 +3,7 @@ import { ScrollView, Switch, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
 import { api } from '../api';
-import { Button, Card, Mono, Screen, Spacer, useToast } from '../ui';
+import { Button, Mono, Screen, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
 export function DisputeScreen({ route, navigation }: NativeStackScreenProps<RootStack, 'Dispute'>) {
@@ -23,15 +23,12 @@ export function DisputeScreen({ route, navigation }: NativeStackScreenProps<Root
     <Screen title="Open a dispute" onBack={() => navigation.goBack()}>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
         <Text style={{ color: t.ink2, fontSize: 13, marginBottom: 12 }}>Funds freeze immediately. Clear-cut cases resolve automatically; the rest go to a reviewer.</Text>
-        <Card>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={{ fontSize: 14, flex: 1 }}>I have evidence that contradicts the record</Text>
-            <Switch value={counter} onValueChange={setCounter} trackColor={{ true: t.ink }} />
-          </View>
-        </Card>
-        <Spacer h={16} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 12 }}>
+          <Switch value={counter} onValueChange={setCounter} trackColor={{ true: t.ink }} />
+          <Text style={{ fontSize: 15, flex: 1 }}>I have evidence that contradicts the record</Text>
+        </View>
         <Button label="Open dispute" onPress={open} busy={busy} />
-        {result && <Mono style={{ marginTop: 12, color: t.ink, fontWeight: '700' }}>{result.toUpperCase()}</Mono>}
+        {result ? <Mono style={{ marginTop: 12, color: t.ink, fontWeight: '700' }}>{result}</Mono> : null}
       </ScrollView>
     </Screen>
   );

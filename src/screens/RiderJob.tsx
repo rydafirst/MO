@@ -3,7 +3,7 @@ import { Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-na
 import * as Location from 'expo-location';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
-import { api, type Fallback, type Job } from '../api';
+import { api, naira, type Fallback, type Job } from '../api';
 import { getToken, getUserId } from '../lib/session';
 import { createRiderPublisher } from '../lib/socket';
 import { Button, Card, Mono, PressableScale, Screen, Spacer, useToast } from '../ui';
@@ -22,6 +22,7 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
   const [policy, setPolicy] = useState<Fallback>('WAIT');
   const [code, setCode] = useState('');
   const [outcome, setOutcome] = useState<'paid' | 'failed' | null>(null);
+  const [feeMinor, setFeeMinor] = useState<number | null>(null);
   const [showUnavailable, setShowUnavailable] = useState(false);
   const [geoOn, setGeoOn] = useState(false);
   const pub = useRef<{ publish: (lat: number, lng: number) => void; close: () => void } | null>(null);
@@ -75,7 +76,7 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
     try { const r = await api.confirmCode(jobId, code); setStatus(r.status); setOutcome('paid'); } catch (e) { toast((e as Error).message); }
   };
   const reportUnavailable = async () => {
-    try { const r = await api.failedAttempt(jobId); setStatus(r.status); setOutcome('failed'); } catch (e) { toast((e as Error).message); }
+    try { const r = await api.failedAttempt(jobId); setStatus(r.status); setFeeMinor(r.attemptFeeMinor); setOutcome('failed'); } catch (e) { toast((e as Error).message); }
   };
   const navTo = (pt?: { lat: number; lng: number }) => { if (pt) Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${pt.lat},${pt.lng}`); };
 
@@ -112,25 +113,29 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
             {job.item ? <Detail label="Sending" value={job.item} /> : null}
             {job.instructions ? <Detail label="Notes" value={job.instructions} /> : null}
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-              <PressableScale onPress={() => navTo(job.pickup)} style={[s.chip, { flex: 1 }]}><Mono style={{ color: t.ink }}>NAV TO PICKUP</Mono></PressableScale>
-              <PressableScale onPress={() => navTo(job.dropoff)} style={[s.chip, { flex: 1 }]}><Mono style={{ color: t.ink }}>NAV TO DROP</Mono></PressableScale>
+              <PressableScale onPress={() => navTo(job.pickup)} style={[s.chip, { flex: 1 }]}><Mono style={{ color: t.ink, fontSize: 10.5 }}>NAVIGATE TO PICKUP</Mono></PressableScale>
+              <PressableScale onPress={() => navTo(job.dropoff)} style={[s.chip, { flex: 1 }]}><Mono style={{ color: t.ink, fontSize: 10.5 }}>NAVIGATE TO DROP-OFF</Mono></PressableScale>
             </View>
           </Card>
         )}
 
         {done ? (
           outcome === 'paid' ? (
-            <Mono style={{ color: t.success, fontWeight: '700' }}>PAID ✓ — RELEASED TO YOUR WALLET</Mono>
+            <Mono style={{ color: t.success, fontWeight: '700' }}>PAID ✓ — released to your wallet</Mono>
           ) : (
-            <Card><Mono style={{ color: t.warning, fontWeight: '700' }}>DELIVERY FAILED — RECEIVER UNAVAILABLE</Mono>
-              <Text style={{ fontSize: 13, color: t.ink2, marginTop: 6 }}>Your attempt fee was paid; the rest was refunded to the customer.</Text></Card>
+            <Card><Mono style={{ color: t.warning, fontWeight: '700', marginBottom: 6 }}>DELIVERY FAILED — RECEIVER UNAVAILABLE</Mono>
+              <Text style={{ fontSize: 13, color: t.ink2, lineHeight: 19 }}>
+                {policy === 'RETURN' ? 'Please return the parcel to the sender. ' : ''}
+                {feeMinor !== null ? `${naira(feeMinor)} (attempt + any waiting fee) was paid to you; ` : 'Your attempt fee has been paid; '}
+                the rest was refunded to the customer.
+              </Text></Card>
           )
         ) : status === 'EN_ROUTE_DROP' ? (
           <Button label="I've arrived (verify GPS)" onPress={arrive} />
         ) : status === 'ARRIVED' ? (
           <>
             <Card style={{ marginBottom: 12 }}>
-              <Mono>{policy === 'DELEGATE' ? 'ENTER CODE (RECEIVER OR PROXY)' : "ENTER THE RECEIVER'S DELIVERY CODE"}</Mono>
+              <Mono style={{ fontSize: 10 }}>{policy === 'DELEGATE' ? 'ENTER THE CODE (RECEIVER OR THEIR PROXY)' : "ENTER THE RECEIVER'S DELIVERY CODE"}</Mono>
               <TextInput style={s.codeInput} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={4} />
               <Button label="Confirm & get paid" onPress={confirm} />
             </Card>
@@ -140,11 +145,11 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
               <Card>
                 <Text style={{ fontSize: 14, fontWeight: '700' }}>Receiver unavailable</Text>
                 <Text style={{ fontSize: 12.5, color: t.ink2, marginVertical: 8, lineHeight: 18 }}>
-                  {policy === 'WAIT' && 'The customer chose “wait”: wait up to 10 min (a waiting fee may apply).'}
-                  {policy === 'DELEGATE' && 'A proxy may receive it with the code above. Only report failed if no one can accept it.'}
-                  {policy === 'RETURN' && 'The customer chose “return”: bring the parcel back to the sender.'}
+                  {policy === 'WAIT' && 'The customer chose “wait”: please wait up to 10 minutes (a waiting fee may apply). If they receive it, use the code above instead.'}
+                  {policy === 'DELEGATE' && 'The customer allows a proxy: anyone present can receive it with the code above. Only report failed if no one at all can accept it.'}
+                  {policy === 'RETURN' && 'The customer chose “return”: if no one can receive it, return the parcel to the sender.'}
                 </Text>
-                <Button label={policy === 'RETURN' ? 'Return to sender' : 'Report failed attempt'} variant="ghost" onPress={reportUnavailable} />
+                <Button label={policy === 'RETURN' ? 'Return to sender (end delivery)' : 'Report failed attempt'} variant="ghost" onPress={reportUnavailable} />
               </Card>
             )}
           </>

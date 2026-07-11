@@ -3,7 +3,7 @@ import { ScrollView, Switch, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
 import { api } from '../api';
-import { Button, Card, Screen, Spacer, useToast } from '../ui';
+import { Button, Screen, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
 const ITEMS = [
@@ -27,15 +27,13 @@ export function KycScreen({ navigation }: NativeStackScreenProps<RootStack, 'Kyc
   return (
     <Screen title="Rider verification" onBack={() => navigation.goBack()}>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
-        <Text style={{ color: t.ink2, fontSize: 13, marginBottom: 12 }}>You can&apos;t accept jobs until NIN + BVN are verified.</Text>
-        <Card>
-          {ITEMS.map(([k, l], i) => (
-            <View key={k} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: i < ITEMS.length - 1 ? 1 : 0, borderBottomColor: t.line2 }}>
-              <Text style={{ fontSize: 14 }}>{l}</Text>
-              <Switch value={state[k]} onValueChange={(v) => setState((s) => ({ ...s, [k]: v }))} trackColor={{ true: t.ink }} />
-            </View>
-          ))}
-        </Card>
+        <Text style={{ color: t.ink2, fontSize: 13, marginBottom: 4 }}>You can&apos;t accept jobs until NIN + BVN are verified.</Text>
+        {ITEMS.map(([k, l]) => (
+          <View key={k} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.line2 }}>
+            <Text style={{ fontSize: 15 }}>{l}</Text>
+            <Switch value={state[k]} onValueChange={(v) => setState((s) => ({ ...s, [k]: v }))} trackColor={{ true: t.ink }} />
+          </View>
+        ))}
         <Spacer h={16} />
         <Button label="Submit for review" onPress={submit} busy={busy} />
       </ScrollView>

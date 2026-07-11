@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, View, ViewStyle, TextStyle } from 'react-native';
+import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextInputProps, View, ViewStyle, TextStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { t } from './theme';
 
@@ -52,16 +52,55 @@ export function Button({ label, onPress, variant = 'primary', busy, disabled }: 
   const ghost = variant === 'ghost';
   return (
     <PressableScale onPress={onPress} disabled={disabled || busy} style={[bs.btn, ghost && bs.ghost]}>
-      <Text style={[bs.txt, ghost && bs.ghostTxt]}>{(busy ? 'Working…' : label).toUpperCase()}</Text>
+      <Text style={[bs.txt, ghost && bs.ghostTxt]}>{label.toUpperCase()}</Text>
     </PressableScale>
   );
 }
 const bs = StyleSheet.create({
-  btn: { backgroundColor: t.primary, borderRadius: 10, paddingVertical: 15, alignItems: 'center' },
+  // rf-btn: full-width, mono, uppercase, radius lg(8), padding 14/16.
+  btn: { backgroundColor: t.primary, borderRadius: t.radius.lg, paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center' },
   ghost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: t.line },
-  txt: { color: t.primaryInk, fontWeight: '700', fontSize: 12.5, letterSpacing: 1 },
+  txt: { color: t.primaryInk, fontFamily: t.mono, fontWeight: '700', fontSize: 13, letterSpacing: 0.8 },
   ghostTxt: { color: t.ink },
 });
+
+/* ---------------- Text input (rf-input) + labelled Field ---------------- */
+export function Input(props: TextInputProps) {
+  return <TextInput placeholderTextColor={t.mid} {...props} style={[is.input, props.style]} />;
+}
+const is = StyleSheet.create({
+  input: {
+    borderWidth: 1, borderColor: t.line, borderRadius: t.radius.md,
+    paddingHorizontal: 14, paddingVertical: 12, fontSize: t.size.body, color: t.ink, backgroundColor: t.bg,
+  },
+});
+
+/* ---------------- Segmented toggle (DELIVERY / RIDE etc.) ---------------- */
+export function Segmented<T extends string>({ options, value, onChange }: {
+  options: { value: T; label: string }[]; value: T; onChange: (v: T) => void;
+}) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <PressableScale key={o.value} onPress={() => onChange(o.value)} style={[sg.seg, { borderColor: on ? t.ink : t.line }]}>
+            <Text style={[sg.txt, { color: on ? t.ink : t.mid }]}>{o.label.toUpperCase()}</Text>
+          </PressableScale>
+        );
+      })}
+    </View>
+  );
+}
+const sg = StyleSheet.create({
+  seg: { flex: 1, borderWidth: 1, borderRadius: t.radius.md, paddingVertical: 12, alignItems: 'center', backgroundColor: t.bg },
+  txt: { fontFamily: t.mono, fontSize: 12, fontWeight: '700', letterSpacing: 0.7 },
+});
+
+export function Divider() { return <View style={{ height: 1, backgroundColor: t.line, marginVertical: 8 }} />; }
+export function H1({ children }: { children: React.ReactNode }) {
+  return <Text style={{ fontSize: t.size.title, fontWeight: '700', color: t.ink, letterSpacing: -0.4 }}>{children}</Text>;
+}
 
 /* ---------------- Layout primitives ---------------- */
 export function Screen({ title, onBack, children, scroll }: {
@@ -104,7 +143,7 @@ const us = StyleSheet.create({
   back: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   backTxt: { fontSize: 30, color: t.ink, marginTop: -4 },
   title: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700', color: t.ink },
-  card: { backgroundColor: t.bg, borderWidth: 1, borderColor: t.line, borderRadius: 8, padding: 16 },
+  card: { backgroundColor: t.bg, borderWidth: 1, borderColor: t.line, borderRadius: t.radius.md, padding: 16 },
   pill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' },
   pillTxt: { color: '#fff', fontFamily: t.mono, fontWeight: '700', fontSize: 10, letterSpacing: 0.6 },
 });
