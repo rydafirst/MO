@@ -1,7 +1,31 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle, TextStyle } from 'react-native';
+import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, View, ViewStyle, TextStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { t } from './theme';
+
+/* ---------------- Keyboard-aware scroll container ----------------
+ * Wrap any form in this so the on-screen keyboard never hides the field being typed:
+ *  - KeyboardAvoidingView lifts content above the keyboard (iOS 'padding').
+ *  - keyboardShouldPersistTaps="handled" lets a tap on empty space dismiss the keyboard while
+ *    taps on buttons still fire (so you can submit without dismissing first).
+ *  - keyboardDismissMode="on-drag" dismisses when the user scrolls the form.
+ */
+export function KeyboardScreen({ children, contentContainerStyle, offset = 0 }: {
+  children: React.ReactNode; contentContainerStyle?: StyleProp<ViewStyle>; offset?: number;
+}) {
+  return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={offset}>
+      <ScrollView
+        contentContainerStyle={contentContainerStyle}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
+      >
+        {children}
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
 
 /* ---------------- Pressable with a subtle scale/opacity press animation ---------------- */
 export function PressableScale({ onPress, disabled, style, children }: {
@@ -54,7 +78,9 @@ export function Screen({ title, onBack, children, scroll }: {
           <View style={us.back} />
         </View>
       )}
-      {children}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {children}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

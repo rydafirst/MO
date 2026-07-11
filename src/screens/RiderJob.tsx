@@ -83,7 +83,7 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
 
   return (
     <Screen title="Active job" onBack={() => navigation.goBack()}>
-      <ScrollView contentContainerStyle={{ padding: 20 }}>
+      <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <Mono style={{ marginBottom: 12 }}>{status.replace(/_/g, ' ')}</Mono>
         <View style={{ flexDirection: 'row', gap: 4, marginBottom: 20 }}>
           {FLOW.map((_, i) => <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i <= step ? t.ink : t.line2 }} />)}

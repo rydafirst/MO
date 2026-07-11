@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Location from 'expo-location';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { api, naira, type Fallback, type GeoPoint, type Job, type Quote } from '../api';
 import type { AppNav } from '../nav';
-import { Button, Card, Field, Mono, Spacer, useToast } from '../ui';
+import { Button, Card, Field, KeyboardScreen, Mono, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
 interface Place { lat: number; lng: number; label: string; area: string }
@@ -91,7 +91,7 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
 
   if (pending) {
     return (
-      <ScrollView contentContainerStyle={{ padding: 20 }}>
+      <KeyboardScreen contentContainerStyle={{ padding: 20 }}>
         <Text style={s.brand}>Ryda<Text style={{ color: t.ink2, fontWeight: '400' }}>first</Text></Text>
         <Card style={{ borderColor: t.warning, marginTop: 16 }}>
           <Mono style={{ color: t.warning }}>ORDER AWAITING PAYMENT</Mono>
@@ -101,12 +101,12 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
           <Spacer h={8} />
           <Button label="Cancel it" variant="ghost" onPress={async () => { try { await api.cancelJob(pending.id); setPending(null); } catch (e) { toast((e as Error).message); } }} />
         </Card>
-      </ScrollView>
+      </KeyboardScreen>
     );
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+    <KeyboardScreen contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
       <Text style={s.brand}>Ryda<Text style={{ color: t.ink2, fontWeight: '400' }}>first</Text></Text>
       <Spacer h={16} />
       <Field label="Pickup">
@@ -143,7 +143,7 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
           <Mono style={{ textAlign: 'center', marginTop: 8, color: t.ink2 }}>HELD SAFELY UNTIL DELIVERY IS CONFIRMED</Mono>
         </Card>
       )}
-    </ScrollView>
+    </KeyboardScreen>
   );
 }
 

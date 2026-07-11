@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { api, type Account } from '../api';
 import { clearToken, getRole, getToken } from '../lib/session';
 import type { AppNav } from '../nav';
-import { Button, Card, Mono, PressableScale, Spacer, useToast } from '../ui';
+import { Button, Card, KeyboardScreen, Mono, PressableScale, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
 export function ProfileTab({ navigation }: { navigation: AppNav }) {
@@ -32,7 +32,7 @@ export function ProfileTab({ navigation }: { navigation: AppNav }) {
   const logout = async () => { await clearToken(); navigation.reset({ index: 0, routes: [{ name: 'Landing' }] }); };
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+    <KeyboardScreen contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
       <Text style={{ fontSize: 22, fontWeight: '700', color: t.ink, marginBottom: 16 }}>Profile</Text>
 
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 }}>
@@ -72,7 +72,7 @@ export function ProfileTab({ navigation }: { navigation: AppNav }) {
         <Text style={{ fontSize: 13, color: t.ink2, marginVertical: 8 }}>You stay signed in on this device until you log out.</Text>
         <Button label="Log out" variant="ghost" onPress={logout} />
       </Card>
-    </ScrollView>
+    </KeyboardScreen>
   );
 }
 

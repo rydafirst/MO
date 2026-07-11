@@ -5,7 +5,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
 import { api } from '../api';
 import { setToken } from '../lib/session';
-import { Button, Mono, useToast } from '../ui';
+import { Button, KeyboardScreen, Mono, useToast } from '../ui';
 import { t } from '../theme';
 
 type Role = 'CUSTOMER' | 'RIDER';
@@ -47,7 +47,8 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStack, 'L
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: t.bg2, padding: 24, justifyContent: 'center' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: t.bg2 }} edges={['top', 'left', 'right', 'bottom']}>
+      <KeyboardScreen contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}>
       <Text style={s.wordmark}>Ryda<Text style={{ color: t.ink2, fontWeight: '400' }}>first</Text></Text>
       <Mono style={{ letterSpacing: 2, marginTop: 4, marginBottom: 24 }}>RIDERS FIRST</Mono>
 
@@ -84,6 +85,7 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStack, 'L
           </Pressable>
         </>
       )}
+      </KeyboardScreen>
     </SafeAreaView>
   );
 }
