@@ -79,21 +79,23 @@ const is = StyleSheet.create({
 export function Segmented<T extends string>({ options, value, onChange }: {
   options: { value: T; label: string }[]; value: T; onChange: (v: T) => void;
 }) {
+  // Plain Pressable (not PressableScale) so flex:1 is on the pressable itself and each option
+  // stretches to an equal share of the row.
   return (
     <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
       {options.map((o) => {
         const on = o.value === value;
         return (
-          <PressableScale key={o.value} onPress={() => onChange(o.value)} style={[sg.seg, { borderColor: on ? t.ink : t.line }]}>
+          <Pressable key={o.value} onPress={() => onChange(o.value)} style={[sg.seg, { borderColor: on ? t.ink : t.line }]}>
             <Text style={[sg.txt, { color: on ? t.ink : t.mid }]}>{o.label.toUpperCase()}</Text>
-          </PressableScale>
+          </Pressable>
         );
       })}
     </View>
   );
 }
 const sg = StyleSheet.create({
-  seg: { flex: 1, borderWidth: 1, borderRadius: t.radius.md, paddingVertical: 12, alignItems: 'center', backgroundColor: t.bg },
+  seg: { flex: 1, borderWidth: 1, borderRadius: t.radius.md, paddingVertical: 12, paddingHorizontal: 12, alignItems: 'center', backgroundColor: t.bg },
   txt: { fontFamily: t.mono, fontSize: 12, fontWeight: '700', letterSpacing: 0.7 },
 });
 
