@@ -20,7 +20,8 @@
       "bundleIdentifier": "ng.rydafirst.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Rydafirst uses your location so customers can track your delivery and you can confirm pickup and drop-off.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Rydafirst shares your live location with the customer while a delivery is active."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Rydafirst shares your live location with the customer while a delivery is active.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -31,9 +32,7 @@
       },
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "ACCESS_COARSE_LOCATION"
       ]
     },
     "web": {
@@ -52,6 +51,12 @@
         "projectId": "3aab2310-4723-4aad-802c-a57f5fe3c55d"
       }
     },
-    "owner": "rydas-team"
+    "owner": "rydas-team",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/3aab2310-4723-4aad-802c-a57f5fe3c55d"
+    }
   }
 }
