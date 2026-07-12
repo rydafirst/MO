@@ -79,11 +79,20 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
         ...(isDelivery && item ? { item } : {}), ...(isDelivery && instructions ? { instructions } : {}),
       });
       // Open the Flutterwave hosted checkout in a stable in-app Safari view. (The ASWebAuthenticationSession
-      // API crashes on this device, so we avoid it.) Funding is confirmed by the backend webhook, and the
-      // Track screen polls the job status until it flips to FUNDED.
+      // API crashes on this device, so we avoid it.) When Flutterwave redirects back to our deep link on
+      // success, auto-close the browser and confirm the payment — so the customer doesn't have to tap Close.
       const link = job.paymentLink;
       if (link && /^https?:\/\//i.test(link)) {
-        await WebBrowser.openBrowserAsync(link);
+        const sub = Linking.addEventListener('url', async ({ url }) => {
+          const q = Linking.parse(url).queryParams ?? {};
+          const txn = q.transaction_id;
+          const status = q.status;
+          if (txn && (!status || status === 'successful' || status === 'completed')) {
+            try { await api.confirmPayment(job.id, String(txn)); } catch { /* Track polling will catch it */ }
+          }
+          WebBrowser.dismissBrowser(); // close the checkout and return to the app
+        });
+        try { await WebBrowser.openBrowserAsync(link); } finally { sub.remove(); }
       }
       navigation.navigate('Track', { jobId: job.id });
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
