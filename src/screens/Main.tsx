@@ -9,6 +9,7 @@ import { TabIcon, type IconName } from '../components/TabIcon';
 import { HomeTab } from './Home';
 import { OrdersTab } from './Orders';
 import { RiderHomeTab } from './RiderHome';
+import { RiderTripsTab } from './RiderTrips';
 import { ProfileTab } from './Profile';
 
 type Props = NativeStackScreenProps<RootStack, 'Main'>;
@@ -24,7 +25,7 @@ export function MainScreen({ navigation }: Props) {
   useEffect(() => { getToken().then((tok) => { setRole(getRole(tok)); setReady(true); }); }, []);
 
   const tabs: Tab[] = role === 'RIDER'
-    ? [{ key: 'dash', label: 'Dashboard', icon: 'bike' }, { key: 'profile', label: 'Profile', icon: 'user' }]
+    ? [{ key: 'dash', label: 'Dashboard', icon: 'bike' }, { key: 'trips', label: 'Trips', icon: 'orders' }, { key: 'profile', label: 'Profile', icon: 'user' }]
     : [{ key: 'book', label: 'Book', icon: 'home' }, { key: 'orders', label: 'Orders', icon: 'orders' }, { key: 'profile', label: 'Profile', icon: 'user' }];
   const [active, setActive] = useState(tabs[0].key);
 
@@ -36,6 +37,7 @@ export function MainScreen({ navigation }: Props) {
         {active === 'book' && <HomeTab navigation={navigation} />}
         {active === 'orders' && <OrdersTab navigation={navigation} onBook={() => setActive('book')} />}
         {active === 'dash' && <RiderHomeTab navigation={navigation} />}
+        {active === 'trips' && <RiderTripsTab navigation={navigation} />}
         {active === 'profile' && <ProfileTab navigation={navigation} onPrimary={() => setActive(role === 'RIDER' ? 'dash' : 'book')} />}
       </View>
 

@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
-import { api, naira, type Job } from '../api';
+import { api, naira, type Account, type Job } from '../api';
 import { getToken, getUserId } from '../lib/session';
 import { useJobLocation } from '../lib/socket';
 import { Map } from '../components/Map';
+import { BankAccountForm } from '../components/BankAccountForm';
 import { Button, Card, Mono, Pill, PressableScale, Screen, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
@@ -44,8 +45,10 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
   const [deliveryCode, setDeliveryCode] = useState<string | null>(null);
   const [showCancel, setShowCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [refAcct, setRefAcct] = useState<Account | null>(null);
 
   useEffect(() => { getToken().then((tok) => setUid(getUserId(tok))); }, []);
+  useEffect(() => { api.getAccount().then(setRefAcct).catch(() => {}); }, []);
   useEffect(() => {
     let stop = false;
     const TERMINAL = ['CANCELLED', 'RELEASED', 'COMPLETED', 'DISPUTE_RESOLVED', 'FAILED_ATTEMPT'];
@@ -148,8 +151,22 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
             <Card style={{ marginBottom: 12 }}>
               <Text style={{ fontSize: 14, fontWeight: '700' }}>Cancel this order?</Text>
               <Text style={{ fontSize: 12.5, color: t.ink2, marginVertical: 8, lineHeight: 18 }}>
-                {job?.status === 'CREATED' ? 'This order isn’t paid yet, so nothing will be charged.' : 'You’ll be refunded the full amount held in escrow. Cancelling is only possible before pickup.'}
+                {job?.status === 'CREATED'
+                  ? 'This order isn’t paid yet, so nothing will be charged.'
+                  : `You’ll be refunded ${naira(job?.amountMinor ?? 0)} to your original payment method. You can add a bank account below as a backup — it’s optional.`}
               </Text>
+
+              {job?.status !== 'CREATED' && !refAcct && (
+                <View style={{ marginBottom: 4 }}>
+                  <Mono style={{ fontSize: 10, marginBottom: 6 }}>BACKUP REFUND ACCOUNT (OPTIONAL)</Mono>
+                  <BankAccountForm type="refund" onSaved={setRefAcct} />
+                  <Spacer h={10} />
+                </View>
+              )}
+              {job?.status !== 'CREATED' && refAcct ? (
+                <Mono style={{ color: t.ink2, marginBottom: 10 }}>BACKUP ACCOUNT ON FILE · {refAcct.accountNumberMasked}</Mono>
+              ) : null}
+
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <View style={{ flex: 1 }}><Button label="Yes, cancel" variant="ghost" onPress={cancel} busy={cancelling} /></View>
                 <View style={{ flex: 1 }}><Button label="Keep order" variant="ghost" onPress={() => setShowCancel(false)} /></View>

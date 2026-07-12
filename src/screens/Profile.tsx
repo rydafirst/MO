@@ -3,7 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { api, type Account } from '../api';
 import { clearToken, getRole, getToken, getUserId } from '../lib/session';
 import type { AppNav } from '../nav';
-import { Button, Card, H1, Input, KeyboardScreen, Mono, PressableScale, Spacer, useToast } from '../ui';
+import { BankAccountForm } from '../components/BankAccountForm';
+import { Button, Card, H1, KeyboardScreen, Mono, PressableScale, Spacer } from '../ui';
 import { t } from '../theme';
 
 type Role = 'CUSTOMER' | 'RIDER' | 'ADMIN';
@@ -48,24 +49,11 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
 
 // Rider payout / customer fallback refund account — mirrors the web BankAccountCard.
 function BankAccountCard({ isRider }: { isRider: boolean }) {
-  const toast = useToast();
   const [acct, setAcct] = useState<Account | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [bankCode, setBankCode] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [accountName, setAccountName] = useState('');
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => { api.getAccount().then((a) => { setAcct(a); setLoaded(true); }).catch(() => setLoaded(true)); }, []);
-
-  const save = async () => {
-    setBusy(true);
-    try {
-      const a = await api.setAccount({ bankCode, accountNumber, accountName, type: isRider ? 'payout' : 'refund' });
-      setAcct(a); setEditing(false); setAccountNumber(''); toast('Bank account saved.', 'success');
-    } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
-  };
 
   return (
     <Card style={{ marginBottom: 16 }}>
@@ -90,14 +78,9 @@ function BankAccountCard({ isRider }: { isRider: boolean }) {
 
       {editing && (
         <View>
-          <Input style={{ marginBottom: 8 }} placeholder="Account name" value={accountName} onChangeText={setAccountName} />
-          <Input style={{ marginBottom: 8 }} placeholder="Account number (10 digits)" keyboardType="number-pad" maxLength={10} value={accountNumber} onChangeText={(v) => setAccountNumber(v.replace(/\D/g, ''))} />
-          <Input style={{ marginBottom: 12 }} placeholder="Bank code (e.g. 044)" keyboardType="number-pad" value={bankCode} onChangeText={(v) => setBankCode(v.replace(/\D/g, ''))} />
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <View style={{ flex: 1 }}><Button label={busy ? 'Saving…' : 'Save account'} onPress={save} busy={busy} /></View>
-            <View style={{ flex: 1 }}><Button label="Cancel" variant="ghost" onPress={() => setEditing(false)} /></View>
-          </View>
-          <Mono style={{ fontSize: 10, color: t.mid, marginTop: 10 }}>STORED ENCRYPTED · ONLY THE LAST 4 DIGITS ARE EVER SHOWN</Mono>
+          <BankAccountForm type={isRider ? 'payout' : 'refund'} onSaved={(a) => { setAcct(a); setEditing(false); }} />
+          <Spacer h={8} />
+          <Button label="Cancel" variant="ghost" onPress={() => setEditing(false)} />
         </View>
       )}
     </Card>

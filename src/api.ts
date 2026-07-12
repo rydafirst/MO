@@ -85,7 +85,9 @@ export const api = {
   // ---- Shared ----
   wallet: () => call<{ releasedMinor: number; currency: 'NGN'; jobsCount: number; activeCount: number }>(`/wallet`),
   getAccount: () => call<Account | null>(`/me/account`),
-  setAccount: (body: { bankCode: string; accountNumber: string; accountName: string; type?: 'refund' | 'payout' }) =>
+  resolveAccount: (body: { bankCode: string; accountNumber: string }) =>
+    call<{ accountName: string }>(`/me/account/resolve`, { method: 'POST', body: JSON.stringify(body) }),
+  setAccount: (body: { bankCode: string; accountNumber: string; type?: 'refund' | 'payout' }) =>
     call<Account>(`/me/account`, { method: 'PUT', body: JSON.stringify(body) }),
   submitKyc: (inputs: { ninVerified: boolean; bvnVerified: boolean; idDocUploaded: boolean; selfieMatched: boolean; addressProvided: boolean }) =>
     call<{ status: string }>(`/riders/kyc`, { method: 'POST', body: JSON.stringify(inputs) }),
