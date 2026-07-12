@@ -1,17 +1,24 @@
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 // Token lives in the OS secure keystore (Keychain/Keystore), not plain storage. The rider/customer
 // stays signed in until they explicitly log out. We never trust the token's contents for authz —
 // the server re-verifies its signature on every request.
+// expo-secure-store has no web implementation, so the web build (debugging only) falls back to
+// localStorage.
 const KEY = 'rf_token';
+const isWeb = Platform.OS === 'web';
 
 export async function getToken(): Promise<string> {
+  if (isWeb) return globalThis.localStorage?.getItem(KEY) ?? '';
   return (await SecureStore.getItemAsync(KEY)) ?? '';
 }
 export async function setToken(token: string): Promise<void> {
+  if (isWeb) { globalThis.localStorage?.setItem(KEY, token); return; }
   await SecureStore.setItemAsync(KEY, token);
 }
 export async function clearToken(): Promise<void> {
+  if (isWeb) { globalThis.localStorage?.removeItem(KEY); return; }
   await SecureStore.deleteItemAsync(KEY);
 }
 

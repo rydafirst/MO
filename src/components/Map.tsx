@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 // Loose alias: react-native-webview's JSX prop types don't line up with this React version's
@@ -47,6 +47,16 @@ true;
   useEffect(() => {
     if (rider) ref.current?.injectJavaScript(`window.setRider && window.setRider(${rider.lat},${rider.lng});true;`);
   }, [rider?.lat, rider?.lng]);
+
+  // react-native-webview has no web implementation; render a placeholder so the browser build
+  // (used only for debugging) doesn't crash. Native platforms get the real Leaflet map.
+  if (Platform.OS === 'web') {
+    return (
+      <View style={{ height, borderRadius: 8, borderWidth: 1, borderColor: '#DADADA', backgroundColor: '#EDEDED', alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: '#A8A8A8', fontSize: 12 }}>Map preview (native only)</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={{ height, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#DADADA' }}>

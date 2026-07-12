@@ -30,7 +30,7 @@ export function AddressField({ label, placeholder, onSelect }: {
     if (text.trim().length < 2) { setPreds([]); return; }
     timer.current = setTimeout(async () => {
       try { setPreds(await autocomplete(text, session.current)); }
-      catch { /* keep last predictions; a transient lookup error shouldn't spam the user */ }
+      catch (e) { console.warn('[AddressField]', (e as Error).message); toast((e as Error).message); }
     }, 250);
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, [text]);

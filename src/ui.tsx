@@ -10,12 +10,14 @@ import { t } from './theme';
  *    taps on buttons still fire (so you can submit without dismissing first).
  *  - keyboardDismissMode="on-drag" dismisses when the user scrolls the form.
  */
-export function KeyboardScreen({ children, contentContainerStyle, offset = 0 }: {
+export function KeyboardScreen({ children, contentContainerStyle, offset = 0, scrollRef }: {
   children: React.ReactNode; contentContainerStyle?: StyleProp<ViewStyle>; offset?: number;
+  scrollRef?: React.RefObject<ScrollView | null>;
 }) {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={offset}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={contentContainerStyle}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"

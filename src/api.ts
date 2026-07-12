@@ -33,7 +33,11 @@ async function call<T>(path: string, opts: RequestInit & { auth?: boolean } = {}
     ...rest,
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers },
   });
-  if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { message?: string }).message ?? `Request failed (${res.status})`);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { message?: string | string[] };
+    const msg = Array.isArray(body.message) ? body.message.join('; ') : body.message;
+    throw new Error(msg ?? `Request failed (${res.status})`);
+  }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }

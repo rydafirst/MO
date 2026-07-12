@@ -32,16 +32,20 @@ function localityOf(components: RawComponent[]): string {
 
 /** Autocomplete predictions for a typed query, restricted to Nigeria. */
 export async function autocomplete(input: string, sessionToken: string): Promise<Prediction[]> {
-  if (!KEY || input.trim().length < 2) return [];
+  if (!KEY) { console.warn('[places] EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is empty — Google autocomplete is off'); return []; }
+  if (input.trim().length < 2) return [];
   const url =
     `${BASE}/place/autocomplete/json?input=${encodeURIComponent(input)}` +
     `&key=${KEY}&components=country:ng&language=en&sessiontoken=${sessionToken}`;
   const res = await fetch(url);
   const json = (await res.json()) as {
-    status: string;
+    status: string; error_message?: string;
     predictions?: { place_id: string; description: string; structured_formatting?: { main_text: string; secondary_text: string } }[];
   };
-  if (json.status !== 'OK' && json.status !== 'ZERO_RESULTS') throw new Error('Address lookup failed');
+  if (json.status !== 'OK' && json.status !== 'ZERO_RESULTS') {
+    console.warn('[places] autocomplete failed:', json.status, json.error_message);
+    throw new Error(`${json.status}: ${json.error_message ?? 'Address lookup failed'}`);
+  }
   return (json.predictions ?? []).map((p) => ({
     placeId: p.place_id,
     description: p.description,
