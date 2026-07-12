@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api, naira, type AvailableJob, type Job } from '../api';
 import type { AppNav } from '../nav';
+import { AppHeader } from '../components/AppHeader';
 import { Button, Card, Mono, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
@@ -51,6 +52,8 @@ export function RiderHomeTab({ navigation }: { navigation: AppNav }) {
 
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.ink} />}>
+      <AppHeader navigation={navigation} />
+      <Spacer h={16} />
       {activeJob && (
         <Card style={{ borderColor: t.ink, marginBottom: 16 }}>
           <Mono>YOU HAVE AN ACTIVE DELIVERY</Mono>

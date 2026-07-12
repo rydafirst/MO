@@ -5,6 +5,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
 import { api } from '../api';
 import { setToken } from '../lib/session';
+import { registerForPush } from '../lib/push';
 import { Button, Input, KeyboardScreen, Mono, Segmented } from '../ui';
 import { t } from '../theme';
 
@@ -44,6 +45,7 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStack, 'L
     try {
       const tok = await api.verifyOtp(phone, code, role);
       await setToken(tok.accessToken);
+      void registerForPush(); // ask for push permission + register this device (best-effort)
       navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };

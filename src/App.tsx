@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import * as Notifications from 'expo-notifications';
 import { ToastProvider } from './ui';
 import { t } from './theme';
-import { getToken } from './lib/session';
+import { getToken, getRole } from './lib/session';
+import { registerForPush } from './lib/push';
 import { LandingScreen } from './screens/Landing';
 import { LoginScreen } from './screens/Login';
 import { MainScreen } from './screens/Main';
@@ -13,6 +15,7 @@ import { TrackScreen } from './screens/Track';
 import { RiderJobScreen } from './screens/RiderJob';
 import { KycScreen } from './screens/Kyc';
 import { DisputeScreen } from './screens/Dispute';
+import { NotificationsScreen } from './screens/Notifications';
 
 export type RootStack = {
   Landing: undefined;
@@ -22,13 +25,36 @@ export type RootStack = {
   RiderJob: { jobId: string };
   Kyc: undefined;
   Dispute: { jobId: string };
+  Notifications: undefined;
 };
 const Stack = createNativeStackNavigator<RootStack>();
+const navigationRef = createNavigationContainerRef<RootStack>();
 
 export default function App() {
   const [initial, setInitial] = useState<'Landing' | 'Main' | null>(null);
 
-  useEffect(() => { getToken().then((tok) => setInitial(tok ? 'Main' : 'Landing')); }, []);
+  useEffect(() => {
+    getToken().then((tok) => {
+      setInitial(tok ? 'Main' : 'Landing');
+      if (tok) void registerForPush(); // already signed in — refresh this device's push token
+    });
+  }, []);
+
+  // Tapping a push routes by role: customers open the order's tracking screen; riders land on their
+  // dashboard (a "new job" alert isn't theirs to track, and the dashboard shows available/active jobs).
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener(async (res) => {
+      if (!navigationRef.isReady()) return;
+      const jobId = res.notification.request.content.data?.jobId;
+      const role = getRole(await getToken());
+      if (role === 'RIDER') {
+        navigationRef.navigate('Main');
+      } else if (typeof jobId === 'string') {
+        navigationRef.navigate('Track', { jobId });
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   if (!initial) {
     return <View style={{ flex: 1, backgroundColor: t.bg2, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={t.ink} /></View>;
@@ -37,7 +63,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ToastProvider>
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
           <Stack.Navigator initialRouteName={initial} screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
             <Stack.Screen name="Landing" component={LandingScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
@@ -46,6 +72,7 @@ export default function App() {
             <Stack.Screen name="RiderJob" component={RiderJobScreen} />
             <Stack.Screen name="Kyc" component={KycScreen} />
             <Stack.Screen name="Dispute" component={DisputeScreen} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </ToastProvider>

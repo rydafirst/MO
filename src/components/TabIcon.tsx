@@ -1,6 +1,6 @@
 import Svg, { Circle, Path } from 'react-native-svg';
 
-export type IconName = 'home' | 'bike' | 'orders' | 'user';
+export type IconName = 'home' | 'bike' | 'orders' | 'user' | 'bell';
 
 /** Line icons for the bottom navigation — identical set to the web BottomNav. */
 export function TabIcon({ name, color, size = 22 }: { name: IconName; color: string; size?: number }) {
@@ -19,6 +19,12 @@ export function TabIcon({ name, color, size = 22 }: { name: IconName; color: str
         <>
           <Path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" {...c} />
           <Path d="M9 12h7M9 16h7M9 8h4" {...c} />
+        </>
+      )}
+      {name === 'bell' && (
+        <>
+          <Path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8" {...c} />
+          <Path d="M13.7 21a2 2 0 0 1-3.4 0" {...c} />
         </>
       )}
       {name === 'user' && (

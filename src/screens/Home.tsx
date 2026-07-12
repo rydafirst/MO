@@ -5,6 +5,7 @@ import * as Linking from 'expo-linking';
 import { api, naira, type Fallback, type GeoPoint, type Job, type JobType, type Quote } from '../api';
 import type { AppNav } from '../nav';
 import { AddressField, type Place } from '../components/AddressField';
+import { AppHeader } from '../components/AppHeader';
 import { MapPreview } from '../components/MapPreview';
 import { Button, Card, Divider, Field, Input, KeyboardScreen, Mono, Segmented, Spacer, useToast } from '../ui';
 import { t } from '../theme';
@@ -101,7 +102,7 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
   if (pending) {
     return (
       <KeyboardScreen contentContainerStyle={{ padding: 20 }}>
-        <Wordmark />
+        <AppHeader navigation={navigation} />
         <Card style={{ borderColor: t.warning, marginTop: 16 }}>
           <Mono style={{ color: t.warning, fontSize: 10 }}>ORDER AWAITING PAYMENT</Mono>
           <Text style={{ fontSize: 15, fontWeight: '700', marginTop: 6 }}>Finish your last order first</Text>
@@ -118,7 +119,7 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
   return (
     <>
       <KeyboardScreen scrollRef={scrollRef} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-        <Wordmark />
+        <AppHeader navigation={navigation} />
         <Spacer h={16} />
 
         <Segmented
@@ -204,10 +205,6 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
   );
 }
 
-function Wordmark() {
-  return <Text style={s.brand}>Ryda<Text style={{ color: t.ink2, fontWeight: '400' }}>first</Text></Text>;
-}
-
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
@@ -217,9 +214,6 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
   );
 }
 
-const s = StyleSheet.create({
-  brand: { fontSize: 20, fontWeight: '700', color: t.ink, letterSpacing: -0.5 },
-});
 const ms = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(17,17,17,0.45)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: t.bg, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, maxHeight: '86%' },

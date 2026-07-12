@@ -44,6 +44,12 @@
         {
           "locationWhenInUsePermission": "Rydafirst uses your location so customers can track your delivery and you can confirm pickup and drop-off."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#F97316"
+        }
       ]
     ],
     "extra": {

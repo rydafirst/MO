@@ -23,6 +23,7 @@ export interface Job {
 }
 export interface AvailableJob { id: string; type: JobType; amountMinor: number; currency: 'NGN'; createdAt: string; pickupArea: string; dropoffArea: string }
 export interface Account { bankCode: string; accountName: string; accountNumberMasked: string; type: 'refund' | 'payout' }
+export interface Notification { id: string; jobId?: string; title: string; body: string; createdAt: number; read: boolean }
 
 const uuid = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
@@ -91,6 +92,12 @@ export const api = {
     call<Account>(`/me/account`, { method: 'PUT', body: JSON.stringify(body) }),
   submitKyc: (inputs: { ninVerified: boolean; bvnVerified: boolean; idDocUploaded: boolean; selfieMatched: boolean; addressProvided: boolean }) =>
     call<{ status: string }>(`/riders/kyc`, { method: 'POST', body: JSON.stringify(inputs) }),
+  notifications: () => call<{ items: Notification[]; unread: number }>(`/me/notifications`),
+  markNotificationsRead: () => call<{ ok: boolean }>(`/me/notifications/read`, { method: 'POST' }),
+  registerPushToken: (body: { token: string; platform: 'ios' | 'android' }) =>
+    call<{ ok: boolean }>(`/me/notifications/tokens`, { method: 'POST', body: JSON.stringify(body) }),
+  unregisterPushToken: (token: string) =>
+    call<{ ok: boolean }>(`/me/notifications/tokens/${encodeURIComponent(token)}`, { method: 'DELETE' }),
   openDispute: (id: string, counterEvidence = false) =>
     call<{ id: string; status: string; tier: string; resolution?: string }>(`/jobs/${id}/disputes`, { method: 'POST', body: JSON.stringify({ counterEvidence }) }),
 };
