@@ -10,6 +10,7 @@ import { Button, Card, Mono, PressableScale, Screen, Spacer, useToast } from '..
 import { t } from '../theme';
 
 const FLOW = ['EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS', 'EN_ROUTE_DROP'] as const;
+const RELEASABLE = ['ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP']; // rider may hand back only before pickup
 const LABEL: Record<string, string> = {
   EN_ROUTE_PICKUP: 'Heading to pickup', AT_PICKUP: 'At pickup', IN_PROGRESS: 'Picked up', EN_ROUTE_DROP: 'Heading to drop',
 };
@@ -24,6 +25,7 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
   const [outcome, setOutcome] = useState<'paid' | 'failed' | null>(null);
   const [feeMinor, setFeeMinor] = useState<number | null>(null);
   const [showUnavailable, setShowUnavailable] = useState(false);
+  const [showRelease, setShowRelease] = useState(false);
   const [geoOn, setGeoOn] = useState(false);
   const pub = useRef<{ publish: (lat: number, lng: number) => void; close: () => void } | null>(null);
   const done = outcome !== null;
@@ -77,6 +79,10 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
   };
   const reportUnavailable = async () => {
     try { const r = await api.failedAttempt(jobId); setStatus(r.status); setFeeMinor(r.attemptFeeMinor); setOutcome('failed'); } catch (e) { toast((e as Error).message); }
+  };
+  const release = async () => {
+    try { await api.releaseJob(jobId); toast('Job released — back to the pool', 'success'); navigation.goBack(); }
+    catch (e) { toast((e as Error).message); }
   };
   const navTo = (pt?: { lat: number; lng: number }) => { if (pt) Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${pt.lat},${pt.lng}`); };
 
@@ -155,6 +161,22 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
           </>
         ) : (
           <Button label={nextStep === 'AT_PICKUP' ? "I've arrived at pickup (verify GPS)" : `Mark: ${LABEL[nextStep]}`} onPress={advance} />
+        )}
+
+        {!done && RELEASABLE.includes(status) && (
+          showRelease ? (
+            <Card style={{ marginTop: 16 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700' }}>Release this job?</Text>
+              <Text style={{ fontSize: 12.5, color: t.ink2, marginVertical: 8, lineHeight: 18 }}>
+                It goes back to the pool for another rider — only possible before pickup, and no money moves. Releasing too many jobs can limit the offers you get.
+              </Text>
+              <Button label="Release to another rider" variant="ghost" onPress={release} />
+            </Card>
+          ) : (
+            <PressableScale onPress={() => setShowRelease(true)} style={{ marginTop: 20 }}>
+              <Mono style={{ color: t.ink2, textAlign: 'center' }}>CAN&apos;T CONTINUE? RELEASE THIS JOB →</Mono>
+            </PressableScale>
+          )
         )}
         <Spacer h={40} />
       </ScrollView>

@@ -6,12 +6,14 @@ import { api, naira, type Job } from '../api';
 import { getToken, getUserId } from '../lib/session';
 import { useJobLocation } from '../lib/socket';
 import { Map } from '../components/Map';
-import { Button, Card, Mono, Pill, Screen, Spacer, useToast } from '../ui';
+import { Button, Card, Mono, Pill, PressableScale, Screen, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
 // Ordered lifecycle for the progress bar (identical to web).
 const FLOW = ['FUNDED', 'SEARCHING', 'ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS', 'EN_ROUTE_DROP', 'ARRIVED', 'COMPLETED', 'RELEASED'];
 const HAS_RIDER = ['ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS', 'EN_ROUTE_DROP', 'ARRIVED', 'AWAITING_CODE'];
+// A customer can cancel (and be refunded) any time before the parcel is picked up.
+const CANCELLABLE = ['CREATED', 'FUNDED', 'SEARCHING', 'ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP'];
 
 function label(status: string): { text: string; color: string } {
   switch (status) {
@@ -40,6 +42,8 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
   const [job, setJob] = useState<Job | null>(null);
   const [uid, setUid] = useState('');
   const [deliveryCode, setDeliveryCode] = useState<string | null>(null);
+  const [showCancel, setShowCancel] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => { getToken().then((tok) => setUid(getUserId(tok))); }, []);
   useEffect(() => {
@@ -59,6 +63,12 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
   const l = job ? label(job.status) : { text: 'Loading…', color: t.ink2 };
 
   const reveal = async () => { try { setDeliveryCode((await api.issueCode(jobId)).code); } catch (e) { toast((e as Error).message); } };
+  const cancel = async () => {
+    setCancelling(true);
+    try { await api.cancelJob(jobId); toast('Order cancelled', 'success'); navigation.navigate('Main'); }
+    catch (e) { toast((e as Error).message); } finally { setCancelling(false); }
+  };
+  const cancellable = !!job && CANCELLABLE.includes(job.status);
 
   // Payment cancelled / order expired: no trip, no charge.
   if (job?.status === 'CANCELLED') {
@@ -131,6 +141,25 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
               </>
             ) : <Button label="Reveal delivery code" variant="ghost" onPress={reveal} />}
           </Card>
+        )}
+
+        {cancellable && (
+          showCancel ? (
+            <Card style={{ marginBottom: 12 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700' }}>Cancel this order?</Text>
+              <Text style={{ fontSize: 12.5, color: t.ink2, marginVertical: 8, lineHeight: 18 }}>
+                {job?.status === 'CREATED' ? 'This order isn’t paid yet, so nothing will be charged.' : 'You’ll be refunded the full amount held in escrow. Cancelling is only possible before pickup.'}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ flex: 1 }}><Button label="Yes, cancel" variant="ghost" onPress={cancel} busy={cancelling} /></View>
+                <View style={{ flex: 1 }}><Button label="Keep order" variant="ghost" onPress={() => setShowCancel(false)} /></View>
+              </View>
+            </Card>
+          ) : (
+            <PressableScale onPress={() => setShowCancel(true)} style={{ marginBottom: 12 }}>
+              <Mono style={{ color: t.danger, textAlign: 'center' }}>CANCEL THIS ORDER →</Mono>
+            </PressableScale>
+          )
         )}
 
         <View style={{ flexDirection: 'row', gap: 8 }}>

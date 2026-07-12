@@ -68,6 +68,7 @@ export const api = {
   availableJobs: () => call<AvailableJob[]>(`/jobs/available`),
   assignedJobs: () => call<Job[]>(`/jobs/assigned`),
   accept: (id: string) => call<Job>(`/jobs/${id}/accept`, { method: 'POST' }),
+  releaseJob: (id: string) => call<{ status: string }>(`/jobs/${id}/release`, { method: 'POST' }),
   advance: (id: string, to: 'EN_ROUTE_PICKUP' | 'IN_PROGRESS' | 'EN_ROUTE_DROP') =>
     call<Job>(`/jobs/${id}/advance`, { method: 'POST', body: JSON.stringify({ to }) }),
   arrivePickup: (id: string, lat: number, lng: number) =>
