@@ -24,6 +24,14 @@ export interface Job {
 export interface AvailableJob { id: string; type: JobType; amountMinor: number; currency: 'NGN'; createdAt: string; pickupArea: string; dropoffArea: string }
 export interface Account { bankCode: string; accountName: string; accountNumberMasked: string; type: 'refund' | 'payout' }
 export interface Notification { id: string; jobId?: string; title: string; body: string; createdAt: number; read: boolean }
+export type VehicleTrack = 'BIKE' | 'CAR' | 'KEKE';
+export type DocType =
+  | 'PROFILE_PHOTO' | 'GOV_ID' | 'LICENSE' | 'ADDRESS_PROOF' | 'VEHICLE_REG' | 'PROOF_OF_OWNERSHIP'
+  | 'ROADWORTHINESS' | 'INSURANCE' | 'VEHICLE_PHOTO' | 'GUARANTOR' | 'LASRRA' | 'LASDRI' | 'HACKNEY_PERMIT' | 'KEKE_PERMIT';
+export type DocState = 'MISSING' | 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
+export type DocOnboarding = 'NO_TRACK' | 'INCOMPLETE' | 'UNDER_REVIEW' | 'ACTION_REQUIRED' | 'APPROVED' | 'EXPIRED';
+export interface ChecklistItem { type: DocType; label: string; required: boolean; expires: boolean; status: DocState; rejectionReason?: string; expiresAt?: number }
+export interface DocChecklist { track: VehicleTrack | null; onboarding: DocOnboarding; items: ChecklistItem[] }
 
 const uuid = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
@@ -94,6 +102,11 @@ export const api = {
     call<{ status: string }>(`/riders/kyc`, { method: 'POST', body: JSON.stringify(inputs) }),
   notifications: () => call<{ items: Notification[]; unread: number }>(`/me/notifications`),
   markNotificationsRead: () => call<{ ok: boolean }>(`/me/notifications/read`, { method: 'POST' }),
+  documentsChecklist: () => call<DocChecklist>(`/me/documents`),
+  setVehicleTrack: (track: VehicleTrack) =>
+    call<{ track: VehicleTrack }>(`/me/documents/track`, { method: 'PUT', body: JSON.stringify({ track }) }),
+  requestDocumentUpload: (body: { type: DocType; contentType: string; issuedAt?: number; expiresAt?: number }) =>
+    call<{ documentId: string; uploadUrl: string }>(`/me/documents/upload-url`, { method: 'POST', body: JSON.stringify(body) }),
   registerPushToken: (body: { token: string; platform: 'ios' | 'android' }) =>
     call<{ ok: boolean }>(`/me/notifications/tokens`, { method: 'POST', body: JSON.stringify(body) }),
   unregisterPushToken: (token: string) =>

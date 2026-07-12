@@ -50,6 +50,12 @@
         {
           "color": "#F97316"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Rydafirst needs access to your photos so you can upload your verification documents."
+        }
       ]
     ],
     "extra": {

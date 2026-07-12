@@ -90,7 +90,7 @@ export function RiderHomeTab({ navigation }: { navigation: AppNav }) {
       )}
 
       <Spacer h={16} />
-      <Button label="Complete verification (KYC)" variant="ghost" onPress={() => navigation.navigate('Kyc')} />
+      <Button label="Documents & verification" variant="ghost" onPress={() => navigation.navigate('Documents')} />
     </ScrollView>
   );
 }

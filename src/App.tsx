@@ -16,6 +16,7 @@ import { RiderJobScreen } from './screens/RiderJob';
 import { KycScreen } from './screens/Kyc';
 import { DisputeScreen } from './screens/Dispute';
 import { NotificationsScreen } from './screens/Notifications';
+import { DocumentsScreen } from './screens/Documents';
 
 export type RootStack = {
   Landing: undefined;
@@ -26,6 +27,7 @@ export type RootStack = {
   Kyc: undefined;
   Dispute: { jobId: string };
   Notifications: undefined;
+  Documents: undefined;
 };
 const Stack = createNativeStackNavigator<RootStack>();
 const navigationRef = createNavigationContainerRef<RootStack>();
@@ -73,6 +75,7 @@ export default function App() {
             <Stack.Screen name="Kyc" component={KycScreen} />
             <Stack.Screen name="Dispute" component={DisputeScreen} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
+            <Stack.Screen name="Documents" component={DocumentsScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </ToastProvider>
