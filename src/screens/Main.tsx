@@ -6,6 +6,7 @@ import type { RootStack } from '../App';
 import { getRole, getToken } from '../lib/session';
 import { t } from '../theme';
 import { TabIcon, type IconName } from '../components/TabIcon';
+import { ActiveOrderBanner } from '../components/ActiveOrderBanner';
 import { HomeTab } from './Home';
 import { OrdersTab } from './Orders';
 import { RiderHomeTab } from './RiderHome';
@@ -40,6 +41,8 @@ export function MainScreen({ navigation }: Props) {
         {active === 'trips' && <RiderTripsTab navigation={navigation} />}
         {active === 'profile' && <ProfileTab navigation={navigation} onPrimary={() => setActive(role === 'RIDER' ? 'dash' : 'book')} />}
       </View>
+
+      <ActiveOrderBanner role={role} navigation={navigation} />
 
       <View style={[s.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
         {tabs.map((tab) => {
