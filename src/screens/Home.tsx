@@ -78,15 +78,12 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
         ...(isDelivery && recipientName && recipientPhone ? { recipient: { name: recipientName, phone: recipientPhone } } : {}),
         ...(isDelivery && item ? { item } : {}), ...(isDelivery && instructions ? { instructions } : {}),
       });
-      if (job.paymentLink) {
-        const res = await WebBrowser.openAuthSessionAsync(job.paymentLink, returnUrl);
-        if (res.type === 'success' && res.url) {
-          const q = Linking.parse(res.url).queryParams ?? {};
-          const txn = q.transaction_id; const status = q.status;
-          if (txn && (status === 'successful' || status === 'completed')) {
-            try { await api.confirmPayment(job.id, String(txn)); } catch { /* Track polling will catch it */ }
-          }
-        }
+      // Open the Flutterwave hosted checkout in a stable in-app Safari view. (The ASWebAuthenticationSession
+      // API crashes on this device, so we avoid it.) Funding is confirmed by the backend webhook, and the
+      // Track screen polls the job status until it flips to FUNDED.
+      const link = job.paymentLink;
+      if (link && /^https?:\/\//i.test(link)) {
+        await WebBrowser.openBrowserAsync(link);
       }
       navigation.navigate('Track', { jobId: job.id });
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
