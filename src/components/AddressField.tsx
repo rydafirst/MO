@@ -12,8 +12,8 @@ export interface Place { lat: number; lng: number; label: string; area: string }
  * field, and a live Google Places autocomplete dropdown. Falls back to the on-device geocoder only
  * if no Google key is configured.
  */
-export function AddressField({ label, placeholder, onSelect }: {
-  label: string; placeholder?: string; onSelect: (p: Place | null) => void;
+export function AddressField({ label, placeholder, onSelect, onFocus }: {
+  label: string; placeholder?: string; onSelect: (p: Place | null) => void; onFocus?: () => void;
 }) {
   const toast = useToast();
   const [text, setText] = useState('');
@@ -92,6 +92,7 @@ export function AddressField({ label, placeholder, onSelect }: {
       <Input
         value={text}
         onChangeText={(v) => { chosen.current = false; setText(v); }}
+        onFocus={onFocus}
         onSubmitEditing={submitFallback}
         returnKeyType="search"
         autoCorrect={false}

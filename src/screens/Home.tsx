@@ -19,6 +19,12 @@ const FALLBACK_OPTIONS: { value: Fallback; title: string; desc: string }[] = [
 export function HomeTab({ navigation }: { navigation: AppNav }) {
   const toast = useToast();
   const scrollRef = useRef<ScrollView>(null);
+  const pickupY = useRef(0);
+  const dropoffY = useRef(0);
+  // When an address field is focused, lift it toward the top so the autocomplete dropdown is
+  // visible above the keyboard. Delay lets the keyboard begin opening first.
+  const scrollToField = (yRef: React.MutableRefObject<number>) =>
+    setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, yRef.current - 12), animated: true }), 300);
   const [type, setType] = useState<JobType>('DELIVERY');
   const [pickup, setPickup] = useState<Place | null>(null);
   const [dropoff, setDropoff] = useState<Place | null>(null);
@@ -117,8 +123,12 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
 
         <MapPreview pickup={pickup} dropoff={dropoff} />
 
-        <AddressField label={isDelivery ? 'PICKUP' : 'FROM'} onSelect={(p) => { setPickup(p); setQuote(null); }} />
-        <AddressField label={isDelivery ? 'DROP-OFF' : 'TO'} onSelect={(p) => { setDropoff(p); setQuote(null); }} />
+        <View onLayout={(e) => { pickupY.current = e.nativeEvent.layout.y; }}>
+          <AddressField label={isDelivery ? 'PICKUP' : 'FROM'} onFocus={() => scrollToField(pickupY)} onSelect={(p) => { setPickup(p); setQuote(null); }} />
+        </View>
+        <View onLayout={(e) => { dropoffY.current = e.nativeEvent.layout.y; }}>
+          <AddressField label={isDelivery ? 'DROP-OFF' : 'TO'} onFocus={() => scrollToField(dropoffY)} onSelect={(p) => { setDropoff(p); setQuote(null); }} />
+        </View>
 
         {isDelivery && (
           <>
