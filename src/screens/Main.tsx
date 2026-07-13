@@ -4,6 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
 import { getRole, getToken } from '../lib/session';
+import { getRememberedTab, setRememberedTab } from '../lib/tabMemory';
 import { api, type PendingRating } from '../api';
 import { t } from '../theme';
 import { TabIcon, type IconName } from '../components/TabIcon';
@@ -23,15 +24,16 @@ export function MainScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const [ready, setReady] = useState(false);
   const [role, setRole] = useState<'CUSTOMER' | 'RIDER' | 'ADMIN'>('CUSTOMER');
-  // Start with no active tab so we never flash the customer "Book" page to a rider: the correct
-  // first tab is chosen only once the role is known (the token loads asynchronously).
-  const [active, setActive] = useState<string | null>(null);
+  // Start from the remembered tab (if any) so returning from a pushed detail lands on the same tab
+  // instead of the role default; the first tab is otherwise chosen once the role is known.
+  const [active, setActiveState] = useState<string | null>(getRememberedTab());
+  const setActive = (key: string): void => { setRememberedTab(key); setActiveState(key); };
 
   useEffect(() => {
     getToken().then((tok) => {
       const r = getRole(tok);
       setRole(r);
-      setActive(r === 'RIDER' ? 'dash' : 'book');
+      if (!getRememberedTab()) setActive(r === 'RIDER' ? 'dash' : 'book');
       setReady(true);
     });
   }, []);

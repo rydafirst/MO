@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { api, type Account } from '../api';
 import { clearToken, getRole, getToken, getUserId } from '../lib/session';
 import { unregisterForPush } from '../lib/push';
+import { setRememberedTab } from '../lib/tabMemory';
 import type { AppNav } from '../nav';
 import { BankAccountForm } from '../components/BankAccountForm';
 import { Button, Card, H1, KeyboardScreen, Mono, PressableScale, Spacer } from '../ui';
@@ -17,7 +18,7 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
 
   useEffect(() => { getToken().then((tok) => { setRole(getRole(tok)); setUid(getUserId(tok)); }); }, []);
 
-  const logout = async () => { await unregisterForPush(); await clearToken(); navigation.reset({ index: 0, routes: [{ name: 'Landing' }] }); };
+  const logout = async () => { setRememberedTab(null); await unregisterForPush(); await clearToken(); navigation.reset({ index: 0, routes: [{ name: 'Landing' }] }); };
 
   return (
     <KeyboardScreen contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
