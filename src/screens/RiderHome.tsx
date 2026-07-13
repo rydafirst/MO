@@ -3,6 +3,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native
 import { api, naira, type AvailableJob, type Job } from '../api';
 import type { AppNav } from '../nav';
 import { AppHeader } from '../components/AppHeader';
+import { JobsMap, type JobPin } from '../components/JobsMap';
 import { Button, Card, Mono, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
@@ -66,9 +67,16 @@ export function RiderHomeTab({ navigation }: { navigation: AppNav }) {
       <Mono>EARNINGS TODAY</Mono>
       <Text style={{ fontFamily: t.mono, fontSize: 28, fontWeight: '700', color: t.ink }}>{earnings === null ? '—' : naira(earnings)}</Text>
 
-      <View style={s.statusBox}>
-        <Text style={s.statusTxt}>{online ? (jobs.length ? `${jobs.length} JOB${jobs.length > 1 ? 'S' : ''} NEARBY` : 'ONLINE — WAITING FOR JOBS') : 'OFFLINE'}</Text>
-      </View>
+      {online ? (
+        <View style={{ marginVertical: 12 }}>
+          <JobsMap pins={jobs.map((j): JobPin => ({ id: j.id, lat: j.pickupApprox.lat, lng: j.pickupApprox.lng, label: naira(j.amountMinor) }))} />
+          <Mono style={{ textAlign: 'center', color: t.ink2, marginTop: 8 }}>
+            {jobs.length ? `${jobs.length} JOB${jobs.length > 1 ? 'S' : ''} NEARBY` : 'ONLINE — WAITING FOR JOBS'}
+          </Mono>
+        </View>
+      ) : (
+        <View style={s.statusBox}><Text style={s.statusTxt}>OFFLINE</Text></View>
+      )}
       <Button label={online ? 'Go offline' : 'Go online'} variant={online ? 'ghost' : 'primary'} onPress={toggle} />
 
       {online && (

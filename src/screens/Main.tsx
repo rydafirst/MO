@@ -4,13 +4,14 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
 import { getRole, getToken } from '../lib/session';
+import { api, type PendingRating } from '../api';
 import { t } from '../theme';
 import { TabIcon, type IconName } from '../components/TabIcon';
 import { ActiveOrderBanner } from '../components/ActiveOrderBanner';
+import { RatingModal } from '../components/RatingModal';
 import { HomeTab } from './Home';
-import { OrdersTab } from './Orders';
+import { ActivityTab } from './Activity';
 import { RiderHomeTab } from './RiderHome';
-import { RiderTripsTab } from './RiderTrips';
 import { ProfileTab } from './Profile';
 
 type Props = NativeStackScreenProps<RootStack, 'Main'>;
@@ -22,27 +23,43 @@ export function MainScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const [ready, setReady] = useState(false);
   const [role, setRole] = useState<'CUSTOMER' | 'RIDER' | 'ADMIN'>('CUSTOMER');
+  // Start with no active tab so we never flash the customer "Book" page to a rider: the correct
+  // first tab is chosen only once the role is known (the token loads asynchronously).
+  const [active, setActive] = useState<string | null>(null);
 
-  useEffect(() => { getToken().then((tok) => { setRole(getRole(tok)); setReady(true); }); }, []);
+  useEffect(() => {
+    getToken().then((tok) => {
+      const r = getRole(tok);
+      setRole(r);
+      setActive(r === 'RIDER' ? 'dash' : 'book');
+      setReady(true);
+    });
+  }, []);
+
+  // Prompt the customer to rate any delivery they've completed but not yet rated (shown on open).
+  const [pendingRating, setPendingRating] = useState<PendingRating | null>(null);
+  useEffect(() => {
+    if (!ready || role !== 'CUSTOMER') return;
+    api.pendingRatings().then((list) => setPendingRating(list[0] ?? null)).catch(() => {});
+  }, [ready, role]);
 
   const tabs: Tab[] = role === 'RIDER'
-    ? [{ key: 'dash', label: 'Dashboard', icon: 'bike' }, { key: 'trips', label: 'Trips', icon: 'orders' }, { key: 'profile', label: 'Profile', icon: 'user' }]
-    : [{ key: 'book', label: 'Book', icon: 'home' }, { key: 'orders', label: 'Orders', icon: 'orders' }, { key: 'profile', label: 'Profile', icon: 'user' }];
-  const [active, setActive] = useState(tabs[0].key);
+    ? [{ key: 'dash', label: 'Dashboard', icon: 'bike' }, { key: 'activity', label: 'Activity', icon: 'orders' }, { key: 'profile', label: 'Profile', icon: 'user' }]
+    : [{ key: 'book', label: 'Book', icon: 'home' }, { key: 'activity', label: 'Activity', icon: 'orders' }, { key: 'profile', label: 'Profile', icon: 'user' }];
 
-  if (!ready) return <View style={s.center}><ActivityIndicator color={t.ink} /></View>;
+  if (!ready || !active) return <View style={s.center}><ActivityIndicator color={t.ink} /></View>;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bg2 }} edges={['top', 'left', 'right']}>
       <View style={{ flex: 1 }}>
         {active === 'book' && <HomeTab navigation={navigation} />}
-        {active === 'orders' && <OrdersTab navigation={navigation} onBook={() => setActive('book')} />}
+        {active === 'activity' && <ActivityTab navigation={navigation} role={role} />}
         {active === 'dash' && <RiderHomeTab navigation={navigation} />}
-        {active === 'trips' && <RiderTripsTab navigation={navigation} />}
         {active === 'profile' && <ProfileTab navigation={navigation} onPrimary={() => setActive(role === 'RIDER' ? 'dash' : 'book')} />}
       </View>
 
       <ActiveOrderBanner role={role} navigation={navigation} />
+      <RatingModal pending={pendingRating} onDone={() => setPendingRating(null)} />
 
       <View style={[s.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
         {tabs.map((tab) => {

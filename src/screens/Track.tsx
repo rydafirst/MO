@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
-import { api, naira, type Account, type Job } from '../api';
+import { api, naira, type Account, type Job, type RiderSummary } from '../api';
 import { getToken, getUserId } from '../lib/session';
 import { useJobLocation } from '../lib/socket';
 import { Map } from '../components/Map';
@@ -37,6 +37,10 @@ function label(status: string): { text: string; color: string } {
   }
 }
 
+function vehicleLabel(track: string | null): string {
+  return track === 'BIKE' ? 'Motorcycle' : track === 'CAR' ? 'Car / Van' : track === 'KEKE' ? 'Keke' : 'Vehicle';
+}
+
 export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootStack, 'Track'>) {
   const { jobId } = route.params;
   const toast = useToast();
@@ -62,6 +66,16 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
 
   const { point } = useJobLocation(jobId, uid);
   const hasRider = !!job && HAS_RIDER.includes(job.status);
+
+  // Once a rider is assigned, load their public details (name + vehicle) to show the customer.
+  const [rider, setRider] = useState<RiderSummary | null>(null);
+  useEffect(() => {
+    if (!hasRider) { setRider(null); return; }
+    let stop = false;
+    api.jobRider(jobId).then((r) => { if (!stop) setRider(r.rider); }).catch(() => {});
+    return () => { stop = true; };
+  }, [hasRider, jobId]);
+
   const step = job ? FLOW.indexOf(job.status) : -1;
   const l = job ? label(job.status) : { text: 'Loading…', color: t.ink2 };
 
@@ -101,6 +115,28 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
         <View style={{ flexDirection: 'row', gap: 4, marginBottom: 16 }}>
           {FLOW.map((_, i) => <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: step >= 0 && i <= step ? t.ink : t.line2 }} />)}
         </View>
+
+        {rider && (
+          <Card style={{ marginBottom: 12 }}>
+            <Mono style={{ marginBottom: 8 }}>YOUR RIDER</Mono>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: t.ink, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: '#fff', fontWeight: '700', fontFamily: t.mono }}>{(rider.name ?? 'R').trim().charAt(0).toUpperCase()}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700' }}>
+                  {rider.name ?? 'Assigned rider'}{rider.nameVerified ? '  ✓' : ''}
+                  {rider.ratingCount ? `   ★ ${rider.rating?.toFixed(1)}` : ''}
+                </Text>
+                <Text style={{ fontSize: 12.5, color: t.ink2, marginTop: 2 }}>
+                  {vehicleLabel(rider.vehicleType)}
+                  {rider.vehicleColor ? ` · ${rider.vehicleColor.charAt(0) + rider.vehicleColor.slice(1).toLowerCase()}` : ''}
+                  {rider.vehiclePlate ? ` · ${rider.vehiclePlate}` : ''}
+                </Text>
+              </View>
+            </View>
+          </Card>
+        )}
 
         {job && (
           <Card style={{ marginBottom: 12 }}>

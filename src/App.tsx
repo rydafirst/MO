@@ -13,10 +13,10 @@ import { LoginScreen } from './screens/Login';
 import { MainScreen } from './screens/Main';
 import { TrackScreen } from './screens/Track';
 import { RiderJobScreen } from './screens/RiderJob';
-import { KycScreen } from './screens/Kyc';
 import { DisputeScreen } from './screens/Dispute';
 import { NotificationsScreen } from './screens/Notifications';
 import { DocumentsScreen } from './screens/Documents';
+import { ActivityDetailScreen } from './screens/ActivityDetail';
 
 export type RootStack = {
   Landing: undefined;
@@ -24,10 +24,10 @@ export type RootStack = {
   Main: undefined;
   Track: { jobId: string };
   RiderJob: { jobId: string };
-  Kyc: undefined;
   Dispute: { jobId: string };
   Notifications: undefined;
   Documents: undefined;
+  ActivityDetail: { jobId: string };
 };
 const Stack = createNativeStackNavigator<RootStack>();
 const navigationRef = createNavigationContainerRef<RootStack>();
@@ -72,10 +72,10 @@ export default function App() {
             <Stack.Screen name="Main" component={MainScreen} />
             <Stack.Screen name="Track" component={TrackScreen} />
             <Stack.Screen name="RiderJob" component={RiderJobScreen} />
-            <Stack.Screen name="Kyc" component={KycScreen} />
             <Stack.Screen name="Dispute" component={DisputeScreen} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
             <Stack.Screen name="Documents" component={DocumentsScreen} />
+            <Stack.Screen name="ActivityDetail" component={ActivityDetailScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </ToastProvider>

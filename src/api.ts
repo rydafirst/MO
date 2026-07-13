@@ -21,7 +21,7 @@ export interface Job {
   recipient?: { name: string; phone: string }; item?: string; instructions?: string;
   fallbackPolicy?: Fallback;
 }
-export interface AvailableJob { id: string; type: JobType; amountMinor: number; currency: 'NGN'; createdAt: string; pickupArea: string; dropoffArea: string }
+export interface AvailableJob { id: string; type: JobType; amountMinor: number; currency: 'NGN'; createdAt: string; pickupArea: string; dropoffArea: string; pickupApprox: { lat: number; lng: number } }
 export interface Account { bankCode: string; accountName: string; accountNumberMasked: string; type: 'refund' | 'payout' }
 export interface Notification { id: string; jobId?: string; title: string; body: string; createdAt: number; read: boolean }
 export type VehicleTrack = 'BIKE' | 'CAR' | 'KEKE';
@@ -32,6 +32,11 @@ export type DocState = 'MISSING' | 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | '
 export type DocOnboarding = 'NO_TRACK' | 'INCOMPLETE' | 'UNDER_REVIEW' | 'ACTION_REQUIRED' | 'APPROVED' | 'EXPIRED';
 export interface ChecklistItem { type: DocType; label: string; required: boolean; expires: boolean; status: DocState; rejectionReason?: string; expiresAt?: number }
 export interface DocChecklist { track: VehicleTrack | null; onboarding: DocOnboarding; items: ChecklistItem[] }
+export type VehicleColor = 'BLACK' | 'WHITE' | 'SILVER' | 'GREY' | 'RED' | 'BLUE' | 'GREEN' | 'GOLD' | 'OTHER';
+export const VEHICLE_COLORS: VehicleColor[] = ['BLACK', 'WHITE', 'SILVER', 'GREY', 'RED', 'BLUE', 'GREEN', 'GOLD', 'OTHER'];
+export interface RiderProfile { track: VehicleTrack | null; legalName?: string; nameVerified: boolean; vehiclePlate?: string; vehicleColor?: VehicleColor }
+export interface RiderSummary { name?: string; nameVerified: boolean; vehicleType: VehicleTrack | null; vehiclePlate?: string; vehicleColor?: string; rating?: number; ratingCount?: number }
+export interface PendingRating { jobId: string; amountMinor: number; createdAt: string; dropoffArea?: string; riderName?: string }
 
 const uuid = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
@@ -107,6 +112,13 @@ export const api = {
     call<{ track: VehicleTrack }>(`/me/documents/track`, { method: 'PUT', body: JSON.stringify({ track }) }),
   requestDocumentUpload: (body: { type: DocType; contentType: string; issuedAt?: number; expiresAt?: number }) =>
     call<{ documentId: string; uploadUrl: string }>(`/me/documents/upload-url`, { method: 'POST', body: JSON.stringify(body) }),
+  riderProfile: () => call<RiderProfile>(`/me/documents/profile`),
+  updateRiderProfile: (body: { legalName?: string; vehiclePlate?: string; vehicleColor?: VehicleColor }) =>
+    call<RiderProfile>(`/me/documents/profile`, { method: 'PUT', body: JSON.stringify(body) }),
+  jobRider: (id: string) => call<{ rider: RiderSummary | null }>(`/jobs/${id}/rider`),
+  pendingRatings: () => call<PendingRating[]>(`/jobs/pending-ratings`),
+  rateJob: (id: string, body: { stars: number; comment?: string }) =>
+    call<{ id: string }>(`/jobs/${id}/rating`, { method: 'POST', body: JSON.stringify(body) }),
   registerPushToken: (body: { token: string; platform: 'ios' | 'android' }) =>
     call<{ ok: boolean }>(`/me/notifications/tokens`, { method: 'POST', body: JSON.stringify(body) }),
   unregisterPushToken: (token: string) =>

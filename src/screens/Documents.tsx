@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
-import { api, type ChecklistItem, type DocChecklist, type DocState, type DocType, type VehicleTrack } from '../api';
-import { Button, Card, Mono, Pill, PressableScale, Screen, Spacer, useToast } from '../ui';
+import { api, VEHICLE_COLORS, type ChecklistItem, type DocChecklist, type DocState, type DocType, type VehicleColor, type VehicleTrack } from '../api';
+import { Button, Card, Field, Input, Mono, Pill, PressableScale, Screen, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
 const TRACKS: { value: VehicleTrack; label: string; hint: string }[] = [
@@ -112,6 +112,8 @@ export function DocumentsScreen({ navigation }: NativeStackScreenProps<RootStack
           </>
         )}
 
+        {data.track && <RiderDetailsCard />}
+
         {data.track && (
           <>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -156,6 +158,72 @@ export function DocumentsScreen({ navigation }: NativeStackScreenProps<RootStack
   );
 }
 
+// The identity + vehicle details a customer sees once this rider is assigned. Legal name must match
+// the Gov ID (an admin verifies it); changing the name resets that verification.
+function RiderDetailsCard() {
+  const toast = useToast();
+  const [legalName, setLegalName] = useState('');
+  const [plate, setPlate] = useState('');
+  const [color, setColor] = useState<VehicleColor | null>(null);
+  const [verified, setVerified] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.riderProfile().then((p) => {
+      setLegalName(p.legalName ?? '');
+      setPlate(p.vehiclePlate ?? '');
+      setColor(p.vehicleColor ?? null);
+      setVerified(p.nameVerified);
+      setLoaded(true);
+    }).catch(() => setLoaded(true));
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const p = await api.updateRiderProfile({
+        ...(legalName.trim() ? { legalName: legalName.trim() } : {}),
+        ...(plate.trim() ? { vehiclePlate: plate.trim() } : {}),
+        ...(color ? { vehicleColor: color } : {}),
+      });
+      setVerified(p.nameVerified);
+      toast('Details saved');
+    } catch (e) { toast((e as Error).message); } finally { setSaving(false); }
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <Card style={{ marginBottom: 16 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <Mono>YOUR DETAILS (SHOWN TO CUSTOMERS)</Mono>
+        {legalName.trim().length > 0 && (
+          <Pill text={verified ? 'Name verified' : 'Pending check'} color={verified ? t.success : t.warning} />
+        )}
+      </View>
+      <Field label="Full name (as on your ID)"><Input value={legalName} onChangeText={setLegalName} placeholder="e.g. Tolu Olonibua" autoCapitalize="words" /></Field>
+      <Field label="Vehicle plate number"><Input value={plate} onChangeText={setPlate} placeholder="e.g. ABC 123 DE" autoCapitalize="characters" /></Field>
+      <Field label="Vehicle colour">
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {VEHICLE_COLORS.map((c) => {
+            const on = color === c;
+            return (
+              <PressableScale key={c} onPress={() => setColor(c)}>
+                <View style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: on ? t.ink : t.line, backgroundColor: on ? t.ink : t.bg }}>
+                  <Text style={{ fontFamily: t.mono, fontSize: 11, color: on ? '#fff' : t.ink2 }}>{c}</Text>
+                </View>
+              </PressableScale>
+            );
+          })}
+        </View>
+      </Field>
+      <Spacer h={4} />
+      <Button label="Save details" onPress={save} busy={saving} />
+    </Card>
+  );
+}
+
 function ExpiryModal({ item, onCancel, onConfirm }: {
   item: ChecklistItem | null; onCancel: () => void; onConfirm: (expiresAtMs: number) => void;
 }) {
@@ -170,26 +238,31 @@ function ExpiryModal({ item, onCancel, onConfirm }: {
   };
   return (
     <Modal visible={item !== null} transparent animationType="slide" onRequestClose={onCancel}>
-      <Pressable style={ms.overlay} onPress={onCancel}>
-        <Pressable style={ms.sheet} onPress={() => {}}>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: t.ink }}>{item?.label} — expiry date</Text>
-          <Text style={{ fontSize: 12.5, color: t.ink2, marginTop: 4, marginBottom: 12 }}>
-            Enter the date this document expires. Format: YYYY-MM-DD.
-          </Text>
-          <TextInput
-            value={value}
-            onChangeText={setValue}
-            placeholder="2027-05-31"
-            placeholderTextColor={t.mid}
-            autoCapitalize="none"
-            keyboardType="numbers-and-punctuation"
-            style={ms.textInput}
-          />
-          <Spacer h={12} />
-          <Button label="Choose photo" onPress={submit} />
-          <Mono onPress={onCancel} style={{ textAlign: 'center', color: t.ink2, marginTop: 12 }}>CANCEL</Mono>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <Pressable style={ms.overlay} onPress={onCancel}>
+          <Pressable style={ms.sheet} onPress={() => {}}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: t.ink }}>{item?.label} — expiry date</Text>
+            <Text style={{ fontSize: 12.5, color: t.ink2, marginTop: 4, marginBottom: 12 }}>
+              Enter the date this document expires. Format: YYYY-MM-DD.
+            </Text>
+            <TextInput
+              value={value}
+              onChangeText={setValue}
+              placeholder="2027-05-31"
+              placeholderTextColor={t.mid}
+              autoCapitalize="none"
+              keyboardType="numbers-and-punctuation"
+              returnKeyType="done"
+              onSubmitEditing={submit}
+              autoFocus
+              style={ms.textInput}
+            />
+            <Spacer h={12} />
+            <Button label="Choose photo" onPress={submit} />
+            <Mono onPress={onCancel} style={{ textAlign: 'center', color: t.ink2, marginTop: 12 }}>CANCEL</Mono>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

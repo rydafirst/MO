@@ -35,8 +35,8 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
       <BankAccountCard isRider={isRider} />
 
       <Card style={{ padding: 0, marginBottom: 16 }}>
-        <Row label={isRider ? 'Rider dashboard' : 'Book a delivery'} onPress={onPrimary} />
-        <Row label="Verification (KYC)" onPress={() => navigation.navigate('Kyc')} last />
+        <Row label={isRider ? 'Rider dashboard' : 'Book a delivery'} onPress={onPrimary} last={!isRider} />
+        {isRider && <Row label="Documents & verification" onPress={() => navigation.navigate('Documents')} last />}
       </Card>
 
       <Card>
