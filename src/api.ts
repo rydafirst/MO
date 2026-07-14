@@ -150,6 +150,10 @@ export const api = {
   updateRiderProfile: (body: { legalName?: string; vehiclePlate?: string; vehicleColor?: VehicleColor }) =>
     call<RiderProfile>(`/me/documents/profile`, { method: 'PUT', body: JSON.stringify(body) }),
   jobRider: (id: string) => call<{ rider: RiderSummary | null }>(`/jobs/${id}/rider`),
+  jobCustomer: (id: string) => call<{ name?: string; photoUrl?: string }>(`/jobs/${id}/customer`),
+  avatarUploadUrl: (contentType: string) => call<{ uploadUrl: string }>(`/me/avatar/upload-url`, { method: 'POST', body: JSON.stringify({ contentType }) }),
+  myAvatar: () => call<{ photoUrl: string | null }>(`/me/avatar`),
+  me: () => call<{ id: string; phone: string | null }>(`/me`),
   pendingRatings: () => call<PendingRating[]>(`/jobs/pending-ratings`),
   rateJob: (id: string, body: { stars: number; comment?: string }) =>
     call<{ id: string }>(`/jobs/${id}/rating`, { method: 'POST', body: JSON.stringify(body) }),

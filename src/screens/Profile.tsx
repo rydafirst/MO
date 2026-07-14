@@ -1,22 +1,46 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { uploadAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import { api, type Account } from '../api';
-import { clearToken, getRole, getToken, getUserId } from '../lib/session';
+import { clearToken, getRole, getToken } from '../lib/session';
 import { unregisterForPush } from '../lib/push';
 import { setRememberedTab } from '../lib/tabMemory';
 import type { AppNav } from '../nav';
 import { BankAccountForm } from '../components/BankAccountForm';
-import { Button, Card, H1, KeyboardScreen, Mono, PressableScale, Spacer } from '../ui';
+import { Button, Card, H1, KeyboardScreen, Mono, PressableScale, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
 type Role = 'CUSTOMER' | 'RIDER' | 'ADMIN';
 
 export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPrimary?: () => void }) {
   const [role, setRole] = useState<Role>('CUSTOMER');
-  const [uid, setUid] = useState('');
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const toast = useToast();
   const isRider = role === 'RIDER';
 
-  useEffect(() => { getToken().then((tok) => { setRole(getRole(tok)); setUid(getUserId(tok)); }); }, []);
+  const [phone, setPhone] = useState<string | null>(null);
+  useEffect(() => { getToken().then((tok) => setRole(getRole(tok))); }, []);
+  useEffect(() => { api.myAvatar().then((a) => setPhotoUrl(a.photoUrl)).catch(() => {}); }, []);
+  useEffect(() => { api.me().then((m) => setPhone(m.phone)).catch(() => {}); }, []);
+
+  const changePhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { toast('Photo permission is needed'); return; }
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: true, aspect: [1, 1] });
+    if (res.canceled || !res.assets[0]) return;
+    const asset = res.assets[0];
+    const contentType = asset.mimeType ?? 'image/jpeg';
+    setUploading(true);
+    try {
+      const { uploadUrl } = await api.avatarUploadUrl(contentType);
+      const put = await uploadAsync(uploadUrl, asset.uri, { httpMethod: 'PUT', uploadType: FileSystemUploadType.BINARY_CONTENT, headers: { 'Content-Type': contentType } });
+      if (put.status >= 300) throw new Error(`Upload failed (${put.status})`);
+      const a = await api.myAvatar(); setPhotoUrl(a.photoUrl);
+      toast('Photo updated', 'success');
+    } catch (e) { toast((e as Error).message); } finally { setUploading(false); }
+  };
 
   const logout = async () => { setRememberedTab(null); await unregisterForPush(); await clearToken(); navigation.reset({ index: 0, routes: [{ name: 'Landing' }] }); };
 
@@ -26,10 +50,19 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
       <Spacer h={16} />
 
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-        <View style={s.avatar}><Text style={{ color: '#fff', fontWeight: '700', fontFamily: t.mono }}>{isRider ? 'R' : 'C'}</Text></View>
-        <View>
+        <PressableScale onPress={changePhoto}>
+          {photoUrl ? (
+            <Image source={{ uri: photoUrl }} style={[s.avatar, { backgroundColor: t.bg2 }]} />
+          ) : (
+            <View style={s.avatar}><Text style={{ color: '#fff', fontWeight: '700', fontFamily: t.mono }}>{isRider ? 'R' : 'C'}</Text></View>
+          )}
+        </PressableScale>
+        <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 15, fontWeight: '700' }}>{isRider ? 'Rider account' : 'Customer account'}</Text>
-          <Mono style={{ fontSize: 11, color: t.mid }}>ID {uid.slice(0, 8) || '—'}…</Mono>
+          <Mono style={{ fontSize: 11, color: t.mid }}>{phone || '—'}</Mono>
+          <PressableScale onPress={changePhoto} disabled={uploading}>
+            <Mono style={{ color: t.ink, marginTop: 6 }}>{uploading ? 'UPLOADING…' : photoUrl ? 'CHANGE PHOTO →' : 'ADD A PHOTO →'}</Mono>
+          </PressableScale>
         </View>
       </Card>
 

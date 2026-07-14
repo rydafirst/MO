@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import * as Location from 'expo-location';
 import { api, naira, type Fallback, type GeoPoint, type Job, type JobType, type Quote } from '../api';
 import type { AppNav } from '../nav';
 import { AddressField, type Place } from '../components/AddressField';
@@ -28,6 +29,12 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
     setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, yRef.current - 12), animated: true }), 300);
   const [type, setType] = useState<JobType>('DELIVERY');
   const [pickup, setPickup] = useState<Place | null>(null);
+  const [locateSignal, setLocateSignal] = useState(0);
+  const [showLocPrompt, setShowLocPrompt] = useState(false);
+  // Prompt to turn on location on first open (like other delivery apps) so pickup can autofill.
+  useEffect(() => {
+    Location.getForegroundPermissionsAsync().then((p) => { if (!p.granted) setShowLocPrompt(true); }).catch(() => {});
+  }, []);
   const [dropoff, setDropoff] = useState<Place | null>(null);
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
@@ -134,8 +141,19 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
 
         <MapPreview pickup={pickup} dropoff={dropoff} />
 
+        {showLocPrompt && (
+          <Card style={{ borderColor: t.ink, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Text style={{ fontSize: 20 }}>📍</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700' }}>Turn on location</Text>
+              <Text style={{ fontSize: 12.5, color: t.ink2, marginTop: 2 }}>Autofill your pickup from where you are.</Text>
+            </View>
+            <View style={{ width: 96 }}><Button label="Enable" onPress={() => { setShowLocPrompt(false); setLocateSignal((n) => n + 1); }} /></View>
+          </Card>
+        )}
+
         <View onLayout={(e) => { pickupY.current = e.nativeEvent.layout.y; }}>
-          <AddressField label={isDelivery ? 'PICKUP' : 'FROM'} onFocus={() => scrollToField(pickupY)} onSelect={(p) => { setPickup(p); setQuote(null); }} />
+          <AddressField label={isDelivery ? 'PICKUP' : 'FROM'} autoLocate={locateSignal} onFocus={() => scrollToField(pickupY)} onSelect={(p) => { setPickup(p); setQuote(null); }} />
         </View>
         <View onLayout={(e) => { dropoffY.current = e.nativeEvent.layout.y; }}>
           <AddressField label={isDelivery ? 'DROP-OFF' : 'TO'} onFocus={() => scrollToField(dropoffY)} onSelect={(p) => { setDropoff(p); setQuote(null); }} />

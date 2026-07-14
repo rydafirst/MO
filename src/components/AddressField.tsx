@@ -12,8 +12,9 @@ export interface Place { lat: number; lng: number; label: string; area: string }
  * field, and a live Google Places autocomplete dropdown. Falls back to the on-device geocoder only
  * if no Google key is configured.
  */
-export function AddressField({ label, placeholder, onSelect, onFocus }: {
+export function AddressField({ label, placeholder, onSelect, onFocus, autoLocate }: {
   label: string; placeholder?: string; onSelect: (p: Place | null) => void; onFocus?: () => void;
+  autoLocate?: number; // bump to trigger "use my location" from a parent prompt
 }) {
   const toast = useToast();
   const [text, setText] = useState('');
@@ -80,6 +81,10 @@ export function AddressField({ label, placeholder, onSelect, onFocus }: {
       }
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };
+
+  // Parent-triggered "use my location" (e.g. the Home location prompt). Runs on each bump.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (autoLocate) useMyLocation(); }, [autoLocate]);
 
   return (
     <Card style={{ marginBottom: 12 }}>

@@ -196,7 +196,6 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
                 Your {naira(job.returnReserveMinor)} return deposit is refunded in full once the delivery is completed.
               </Text>
             ) : null}
-            <Row label="Job ID" value={`${job.id.slice(0, 8)}…`} mono />
           </Card>
         )}
 

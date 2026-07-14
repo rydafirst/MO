@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Location from 'expo-location';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
@@ -43,8 +43,10 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
     return () => clearInterval(id);
   }, [status]);
 
+  const [customer, setCustomer] = useState<{ name?: string; photoUrl?: string } | null>(null);
   useEffect(() => {
     api.getJob(jobId).then((j) => { setJob(j); setStatus(j.status); if (j.fallbackPolicy) setPolicy(j.fallbackPolicy); }).catch(() => {});
+    api.jobCustomer(jobId).then(setCustomer).catch(() => {});
   }, [jobId]);
 
   // Location streaming to the customer, once permission is granted and the job is active.
@@ -126,7 +128,18 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
         {!done && job && (
           <Card style={{ marginBottom: 16 }}>
             <Mono style={{ marginBottom: 10 }}>DELIVERY DETAILS</Mono>
-            {job.customerName ? <Detail label="Customer" value={job.customerName} /> : null}
+            {(customer?.photoUrl || customer?.name || job.customerName) ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                {customer?.photoUrl ? (
+                  <Image source={{ uri: customer.photoUrl }} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: t.bg2 }} />
+                ) : (
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: t.ink, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontFamily: t.mono }}>{(customer?.name || job.customerName || 'C').trim().charAt(0).toUpperCase()}</Text>
+                  </View>
+                )}
+                <View><Mono>CUSTOMER</Mono><Text style={{ fontSize: 14, fontWeight: '600' }}>{customer?.name || job.customerName || 'Customer'}</Text></View>
+              </View>
+            ) : null}
             {job.pickupAddress ? <Detail label="Pickup" value={job.pickupAddress} /> : null}
             {job.dropoffAddress ? <Detail label="Drop-off" value={job.dropoffAddress} /> : null}
             {job.recipient ? (
