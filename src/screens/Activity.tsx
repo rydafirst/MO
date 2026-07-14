@@ -88,7 +88,7 @@ export function ActivityTab({ navigation, role }: { navigation: AppNav; role: Ro
         return (
           <PressableScale key={j.id} onPress={() => open(j)} style={{ marginBottom: 10 }}>
             <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <View style={s.thumb}><TabIcon name="orders" color={t.ink} size={22} /></View>
+              <View style={s.thumb}><TabIcon name="bike" color={t.ink} size={22} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 14, fontWeight: '700' }} numberOfLines={1}>
                   {j.dropoffArea || j.dropoffAddress || 'Delivery'}
