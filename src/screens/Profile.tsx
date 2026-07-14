@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { uploadAsync, FileSystemUploadType } from 'expo-file-system/legacy';
+import { uploadAsync, getInfoAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import { api, type Account } from '../api';
 import { clearToken, getRole, getToken } from '../lib/session';
 import { unregisterForPush } from '../lib/push';
@@ -32,9 +32,11 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
     if (res.canceled || !res.assets[0]) return;
     const asset = res.assets[0];
     const contentType = asset.mimeType ?? 'image/jpeg';
+    const sizeBytes = asset.fileSize ?? ((await getInfoAsync(asset.uri)) as { size?: number }).size ?? 0;
+    if (sizeBytes > 5 * 1024 * 1024) { toast('Image must be 5 MB or smaller'); return; }
     setUploading(true);
     try {
-      const { uploadUrl } = await api.avatarUploadUrl(contentType);
+      const { uploadUrl } = await api.avatarUploadUrl(contentType, sizeBytes);
       const put = await uploadAsync(uploadUrl, asset.uri, { httpMethod: 'PUT', uploadType: FileSystemUploadType.BINARY_CONTENT, headers: { 'Content-Type': contentType } });
       if (put.status >= 300) throw new Error(`Upload failed (${put.status})`);
       const a = await api.myAvatar(); setPhotoUrl(a.photoUrl);

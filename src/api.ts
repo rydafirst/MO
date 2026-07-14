@@ -93,7 +93,7 @@ export const api = {
 
   // ---- Rider ----
   availableJobs: (pos?: { lat: number; lng: number }) =>
-    call<AvailableJob[]>(`/jobs/available${pos ? `?lat=${pos.lat}&lng=${pos.lng}` : ''}`),
+    call<AvailableJob[]>(`/jobs/available`, { method: 'POST', body: JSON.stringify(pos ?? {}) }),
   assignedJobs: () => call<Job[]>(`/jobs/assigned`),
   accept: (id: string) => call<Job>(`/jobs/${id}/accept`, { method: 'POST' }),
   releaseJob: (id: string) => call<{ status: string }>(`/jobs/${id}/release`, { method: 'POST' }),
@@ -151,7 +151,7 @@ export const api = {
     call<RiderProfile>(`/me/documents/profile`, { method: 'PUT', body: JSON.stringify(body) }),
   jobRider: (id: string) => call<{ rider: RiderSummary | null }>(`/jobs/${id}/rider`),
   jobCustomer: (id: string) => call<{ name?: string; photoUrl?: string }>(`/jobs/${id}/customer`),
-  avatarUploadUrl: (contentType: string) => call<{ uploadUrl: string }>(`/me/avatar/upload-url`, { method: 'POST', body: JSON.stringify({ contentType }) }),
+  avatarUploadUrl: (contentType: string, sizeBytes: number) => call<{ uploadUrl: string }>(`/me/avatar/upload-url`, { method: 'POST', body: JSON.stringify({ contentType, sizeBytes }) }),
   myAvatar: () => call<{ photoUrl: string | null }>(`/me/avatar`),
   me: () => call<{ id: string; phone: string | null }>(`/me`),
   pendingRatings: () => call<PendingRating[]>(`/jobs/pending-ratings`),
