@@ -33,6 +33,8 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
   const [recipientPhone, setRecipientPhone] = useState('');
   const [instructions, setInstructions] = useState('');
   const [item, setItem] = useState('');
+  const [weight, setWeight] = useState('');
+  const [customerName, setCustomerName] = useState('');
   const [fallback, setFallback] = useState<Fallback>('WAIT');
   const [quote, setQuote] = useState<Quote | null>(null);
   const [busy, setBusy] = useState(false);
@@ -78,6 +80,8 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
         ...(dropoff.area ? { dropoffArea: dropoff.area } : {}),
         ...(isDelivery && recipientName && recipientPhone ? { recipient: { name: recipientName, phone: recipientPhone } } : {}),
         ...(isDelivery && item ? { item } : {}), ...(isDelivery && instructions ? { instructions } : {}),
+        ...(isDelivery && Number(weight) > 0 ? { weightKg: Number(weight) } : {}),
+        ...(isDelivery && customerName.trim() ? { customerName: customerName.trim() } : {}),
       });
       // Open the Flutterwave hosted checkout in a stable in-app Safari view. (The ASWebAuthenticationSession
       // API crashes on this device, so we avoid it.) When Flutterwave redirects back to our deep link on
@@ -139,7 +143,11 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
 
         {isDelivery && (
           <>
-            <Field label="What are you sending?"><Input value={item} onChangeText={setItem} placeholder="e.g. documents, phone" /></Field>
+            <Field label="Your name"><Input value={customerName} onChangeText={setCustomerName} placeholder="Shown to your rider" /></Field>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ flex: 2 }}><Field label="What are you sending?"><Input value={item} onChangeText={setItem} placeholder="e.g. documents, phone" /></Field></View>
+              <View style={{ flex: 1 }}><Field label="Weight (kg)"><Input value={weight} onChangeText={setWeight} placeholder="e.g. 2" keyboardType="decimal-pad" /></Field></View>
+            </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <View style={{ flex: 1 }}><Field label="Recipient name"><Input value={recipientName} onChangeText={setRecipientName} /></Field></View>
               <View style={{ flex: 1 }}><Field label="Recipient phone"><Input value={recipientPhone} onChangeText={setRecipientPhone} placeholder="+234…" keyboardType="phone-pad" /></Field></View>

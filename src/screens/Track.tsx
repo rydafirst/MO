@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Linking, ScrollView, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Image, Linking, ScrollView, Text, View } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
 import { api, naira, type Account, type Job, type RiderSummary } from '../api';
@@ -15,6 +16,16 @@ const FLOW = ['FUNDED', 'SEARCHING', 'ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP',
 const HAS_RIDER = ['ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS', 'EN_ROUTE_DROP', 'ARRIVED', 'AWAITING_CODE'];
 // A customer can cancel (and be refunded) any time before the parcel is picked up.
 const CANCELLABLE = ['CREATED', 'FUNDED', 'SEARCHING', 'ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP'];
+// Milestones that trigger an audible follow-up chime for the customer.
+const STATUS_CHIME: Record<string, string> = {
+  ACCEPTED: 'A rider accepted your delivery.',
+  EN_ROUTE_PICKUP: 'Your rider is heading to the pickup.',
+  AT_PICKUP: 'Your rider has arrived at the pickup.',
+  IN_PROGRESS: 'Your parcel has been picked up.',
+  EN_ROUTE_DROP: 'Your rider is on the way to the drop-off.',
+  ARRIVED: 'Your rider has arrived at the drop-off.',
+  RELEASED: 'Delivered — thanks for riding with Rydafirst.',
+};
 
 function label(status: string): { text: string; color: string } {
   switch (status) {
@@ -64,6 +75,19 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
     return () => { stop = true; clearInterval(id); };
   }, [jobId]);
 
+  // Designed audible follow-up: chime + banner when the delivery reaches a new milestone. Reuses
+  // the notification sound already configured for the app (foreground handler plays it).
+  const lastChimed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!job) return;
+    const msg = STATUS_CHIME[job.status];
+    if (!msg) return;
+    if (lastChimed.current === null) { lastChimed.current = job.status; return; } // don't chime on first load
+    if (lastChimed.current === job.status) return;
+    lastChimed.current = job.status;
+    Notifications.scheduleNotificationAsync({ content: { title: 'Delivery update', body: msg, sound: true }, trigger: null }).catch(() => {});
+  }, [job?.status]);
+
   const { point } = useJobLocation(jobId, uid);
   const hasRider = !!job && HAS_RIDER.includes(job.status);
 
@@ -94,6 +118,10 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
   };
   const returnToMe = async () => {
     try { const r = await api.initiateReturn(jobId); if (r.paymentLink) Linking.openURL(r.paymentLink); toast('Return started — pay to bring it back', 'success'); }
+    catch (e) { toast((e as Error).message); }
+  };
+  const notifyComing = async () => {
+    try { await api.notifyComing(jobId); toast('Your rider has been notified', 'success'); }
     catch (e) { toast((e as Error).message); }
   };
 
@@ -130,9 +158,13 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
           <Card style={{ marginBottom: 12 }}>
             <Mono style={{ marginBottom: 8 }}>YOUR RIDER</Mono>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: t.ink, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ color: '#fff', fontWeight: '700', fontFamily: t.mono }}>{(rider.name ?? 'R').trim().charAt(0).toUpperCase()}</Text>
-              </View>
+              {rider.photoUrl ? (
+                <Image source={{ uri: rider.photoUrl }} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: t.bg2 }} />
+              ) : (
+                <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: t.ink, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: '#fff', fontWeight: '700', fontFamily: t.mono }}>{(rider.name ?? 'R').trim().charAt(0).toUpperCase()}</Text>
+                </View>
+              )}
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 15, fontWeight: '700' }}>
                   {rider.name ?? 'Assigned rider'}{rider.nameVerified ? '  ✓' : ''}
@@ -170,8 +202,13 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
 
         {job && (job.pickup || job.dropoff) ? (
           <View style={{ marginBottom: 12 }}>
-            <Map pickup={job.pickup} dropoff={job.dropoff} rider={hasRider ? point : null} height={200} />
+            <Map pickup={job.pickup} dropoff={job.dropoff} rider={hasRider ? point : null} height={320} />
             {hasRider && !point && <Mono style={{ color: t.mid, textAlign: 'center', marginTop: 6 }}>WAITING FOR RIDER LOCATION…</Mono>}
+            {hasRider && (
+              <View style={{ marginTop: 10 }}>
+                <Button label="I'm on my way — notify rider" variant="ghost" onPress={notifyComing} />
+              </View>
+            )}
           </View>
         ) : null}
 

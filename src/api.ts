@@ -16,9 +16,10 @@ export interface Quote {
 }
 export interface Job {
   id: string; type: JobType; status: string; amountMinor: number; currency: 'NGN'; createdAt: string;
+  customerName?: string;
   pickup?: GeoPoint; dropoff?: GeoPoint;
   pickupAddress?: string; dropoffAddress?: string; pickupArea?: string; dropoffArea?: string;
-  recipient?: { name: string; phone: string }; item?: string; instructions?: string;
+  recipient?: { name: string; phone: string }; item?: string; weightGrams?: number; instructions?: string;
   fallbackPolicy?: Fallback;
   waitStartedAt?: number; waitingFeeMinor?: number; waitingTxId?: string; returnOfJobId?: string;
   returnReserveMinor?: number;
@@ -44,7 +45,7 @@ export interface DocChecklist { track: VehicleTrack | null; onboarding: DocOnboa
 export type VehicleColor = 'BLACK' | 'WHITE' | 'SILVER' | 'GREY' | 'RED' | 'BLUE' | 'GREEN' | 'GOLD' | 'OTHER';
 export const VEHICLE_COLORS: VehicleColor[] = ['BLACK', 'WHITE', 'SILVER', 'GREY', 'RED', 'BLUE', 'GREEN', 'GOLD', 'OTHER'];
 export interface RiderProfile { track: VehicleTrack | null; legalName?: string; nameVerified: boolean; vehiclePlate?: string; vehicleColor?: VehicleColor }
-export interface RiderSummary { name?: string; nameVerified: boolean; vehicleType: VehicleTrack | null; vehiclePlate?: string; vehicleColor?: string; rating?: number; ratingCount?: number }
+export interface RiderSummary { name?: string; nameVerified: boolean; vehicleType: VehicleTrack | null; vehiclePlate?: string; vehicleColor?: string; rating?: number; ratingCount?: number; photoUrl?: string }
 export interface PendingRating { jobId: string; amountMinor: number; createdAt: string; dropoffArea?: string; riderName?: string }
 
 const uuid = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -78,13 +79,14 @@ export const api = {
   quote: (body: { type: JobType; pickup: GeoPoint; dropoff: GeoPoint }) =>
     call<Quote>(`/jobs/quote`, { method: 'POST', body: JSON.stringify(body) }),
   createJob: (body: {
-    quoteToken: string; fallbackPolicy?: Fallback; recipient?: { name: string; phone: string };
-    item?: string; instructions?: string; pickupAddress?: string; dropoffAddress?: string; pickupArea?: string; dropoffArea?: string;
+    quoteToken: string; fallbackPolicy?: Fallback; customerName?: string; recipient?: { name: string; phone: string };
+    item?: string; weightKg?: number; instructions?: string; pickupAddress?: string; dropoffAddress?: string; pickupArea?: string; dropoffArea?: string;
     returnUrl?: string;
   }) => call<Job & { paymentLink?: string }>(`/jobs`, { method: 'POST', headers: { 'Idempotency-Key': uuid() }, body: JSON.stringify(body) }),
   myJobs: () => call<Job[]>(`/jobs/mine`),
   getJob: (id: string) => call<Job>(`/jobs/${id}`),
   cancelJob: (id: string) => call<{ status: string; refunded: boolean }>(`/jobs/${id}/cancel`, { method: 'POST' }),
+  notifyComing: (id: string) => call<{ ok: boolean }>(`/jobs/${id}/coming`, { method: 'POST' }),
   confirmPayment: (id: string, transactionId: string) =>
     call<{ funded: boolean; status: string }>(`/jobs/${id}/confirm-payment`, { method: 'POST', body: JSON.stringify({ transactionId }) }),
   issueCode: (id: string) => call<{ code: string }>(`/jobs/${id}/issue-code`, { method: 'POST' }),

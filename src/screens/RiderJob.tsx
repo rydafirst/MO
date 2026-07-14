@@ -126,6 +126,7 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
         {!done && job && (
           <Card style={{ marginBottom: 16 }}>
             <Mono style={{ marginBottom: 10 }}>DELIVERY DETAILS</Mono>
+            {job.customerName ? <Detail label="Customer" value={job.customerName} /> : null}
             {job.pickupAddress ? <Detail label="Pickup" value={job.pickupAddress} /> : null}
             {job.dropoffAddress ? <Detail label="Drop-off" value={job.dropoffAddress} /> : null}
             {job.recipient ? (
@@ -135,6 +136,7 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
               </View>
             ) : null}
             {job.item ? <Detail label="Sending" value={job.item} /> : null}
+            {job.weightGrams ? <Detail label="Weight" value={`${(job.weightGrams / 1000).toLocaleString()} kg`} /> : null}
             {job.instructions ? <Detail label="Notes" value={job.instructions} /> : null}
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
               <PressableScale onPress={() => navTo(job.pickup)} style={[s.chip, { flex: 1 }]}><Mono style={{ color: t.ink, fontSize: 10.5 }}>NAVIGATE TO PICKUP</Mono></PressableScale>
