@@ -20,9 +20,18 @@ export interface Job {
   pickupAddress?: string; dropoffAddress?: string; pickupArea?: string; dropoffArea?: string;
   recipient?: { name: string; phone: string }; item?: string; instructions?: string;
   fallbackPolicy?: Fallback;
+  waitStartedAt?: number; waitingFeeMinor?: number; waitingTxId?: string; returnOfJobId?: string;
+  returnReserveMinor?: number;
 }
-export interface AvailableJob { id: string; type: JobType; amountMinor: number; currency: 'NGN'; createdAt: string; pickupArea: string; dropoffArea: string; pickupApprox: { lat: number; lng: number } }
+export interface ChatMessage { id: string; jobId: string; senderId: string; body: string; createdAt: number }
+export interface AvailableJob {
+  id: string; type: JobType; amountMinor: number; currency: 'NGN'; createdAt: string;
+  pickupArea: string; dropoffArea: string; pickupApprox: { lat: number; lng: number };
+  tripDistanceMeters: number; tripEtaMin: number;
+  toPickupMeters?: number; toPickupEtaMin?: number;
+}
 export interface Account { bankCode: string; accountName: string; accountNumberMasked: string; type: 'refund' | 'payout' }
+export interface Bank { code: string; name: string }
 export interface Notification { id: string; jobId?: string; title: string; body: string; createdAt: number; read: boolean }
 export type VehicleTrack = 'BIKE' | 'CAR' | 'KEKE';
 export type DocType =
@@ -81,7 +90,8 @@ export const api = {
   issueCode: (id: string) => call<{ code: string }>(`/jobs/${id}/issue-code`, { method: 'POST' }),
 
   // ---- Rider ----
-  availableJobs: () => call<AvailableJob[]>(`/jobs/available`),
+  availableJobs: (pos?: { lat: number; lng: number }) =>
+    call<AvailableJob[]>(`/jobs/available${pos ? `?lat=${pos.lat}&lng=${pos.lng}` : ''}`),
   assignedJobs: () => call<Job[]>(`/jobs/assigned`),
   accept: (id: string) => call<Job>(`/jobs/${id}/accept`, { method: 'POST' }),
   releaseJob: (id: string) => call<{ status: string }>(`/jobs/${id}/release`, { method: 'POST' }),
@@ -95,11 +105,31 @@ export const api = {
     call<{ status: string }>(`/jobs/${id}/confirm-code`, { method: 'POST', headers: { 'Idempotency-Key': uuid() }, body: JSON.stringify({ code }) }),
   failedAttempt: (id: string) =>
     call<{ status: string; attemptFeeMinor: number; waitingFeeMinor: number }>(`/jobs/${id}/failed-attempt`, { method: 'POST', headers: { 'Idempotency-Key': uuid() } }),
+  // ---- Recipient-unavailable resolution ----
+  startWaiting: (id: string) =>
+    call<{ status: string; waitStartedAt: number }>(`/jobs/${id}/start-waiting`, { method: 'POST' }),
+  escalate: (id: string) =>
+    call<{ status: string; waitingSoFarMinor: number; returnFareMinor: number }>(`/jobs/${id}/escalate`, { method: 'POST' }),
+  chargeWaiting: (id: string) =>
+    call<{ waitingFeeMinor: number; paymentLink: string; flwTxRef: string }>(`/jobs/${id}/charge-waiting`, { method: 'POST' }),
+  confirmWaitingPayment: (id: string, transactionId: string) =>
+    call<{ funded: boolean }>(`/jobs/${id}/confirm-waiting-payment`, { method: 'POST', body: JSON.stringify({ transactionId }) }),
+  keepWaiting: (id: string) =>
+    call<{ status: string; waitingSoFarMinor: number }>(`/jobs/${id}/keep-waiting`, { method: 'POST' }),
+  payWaiting: (id: string) =>
+    call<{ waitingFeeMinor: number; paymentLink: string; flwTxRef: string }>(`/jobs/${id}/pay-waiting`, { method: 'POST' }),
+  initiateReturn: (id: string, returnUrl?: string) =>
+    call<Job & { paymentLink?: string }>(`/jobs/${id}/return`, { method: 'POST', body: JSON.stringify(returnUrl ? { returnUrl } : {}) }),
+  // ---- Rider <-> customer chat ----
+  messages: (id: string) => call<ChatMessage[]>(`/jobs/${id}/messages`),
+  sendMessage: (id: string, body: string) =>
+    call<ChatMessage>(`/jobs/${id}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
   getAvailability: () => call<{ online: boolean }>(`/me/availability`),
   setAvailability: (online: boolean) => call<{ online: boolean }>(`/me/availability`, { method: 'PUT', body: JSON.stringify({ online }) }),
 
   // ---- Shared ----
   wallet: () => call<{ releasedMinor: number; currency: 'NGN'; jobsCount: number; activeCount: number }>(`/wallet`),
+  banks: () => call<Bank[]>(`/me/account/banks`),
   getAccount: () => call<Account | null>(`/me/account`),
   resolveAccount: (body: { bankCode: string; accountNumber: string }) =>
     call<{ accountName: string }>(`/me/account/resolve`, { method: 'POST', body: JSON.stringify(body) }),

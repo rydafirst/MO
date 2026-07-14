@@ -55,6 +55,12 @@ export function ActivityDetailScreen({ route, navigation }: NativeStackScreenPro
           <Row label="From" value={job.pickupArea || job.pickupAddress || '—'} />
           <Row label="To" value={job.dropoffArea || job.dropoffAddress || '—'} />
           <Row label="When" value={when} />
+          {job.returnReserveMinor ? (
+            <>
+              <Row label="Delivery fare" value={naira(job.amountMinor - job.returnReserveMinor)} />
+              <Row label="Return deposit (refundable)" value={naira(job.returnReserveMinor)} />
+            </>
+          ) : null}
           <Row label="Amount" value={naira(job.amountMinor)} strong />
         </Card>
 

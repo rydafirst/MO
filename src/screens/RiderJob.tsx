@@ -22,14 +22,26 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
   const [status, setStatus] = useState('ACCEPTED');
   const [policy, setPolicy] = useState<Fallback>('WAIT');
   const [code, setCode] = useState('');
-  const [outcome, setOutcome] = useState<'paid' | 'failed' | null>(null);
-  const [feeMinor, setFeeMinor] = useState<number | null>(null);
+  const [outcome, setOutcome] = useState<'paid' | null>(null);
   const [showUnavailable, setShowUnavailable] = useState(false);
   const [showRelease, setShowRelease] = useState(false);
   const [geoOn, setGeoOn] = useState(false);
+  const [now, setNow] = useState(Date.now());
   const pub = useRef<{ publish: (lat: number, lng: number) => void; close: () => void } | null>(null);
   const done = outcome !== null;
   const step = FLOW.indexOf(status as (typeof FLOW)[number]);
+
+  // Live waiting meter: 10-min free grace, then ₦50/min capped at ₦1,000 (mirrors the server).
+  const waitStartedAt = job?.waitStartedAt;
+  const elapsedS = waitStartedAt ? Math.max(0, Math.floor((now - waitStartedAt) / 1000)) : 0;
+  const graceLeftS = Math.max(0, 600 - elapsedS);
+  const accruedMinor = elapsedS > 600 ? Math.min(Math.ceil((elapsedS - 600) / 60) * 5_000, 100_000) : 0;
+  const waitingPaid = !!job?.waitingTxId;
+  useEffect(() => {
+    if (status !== 'WAITING' && status !== 'AWAITING_RESOLUTION') return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [status]);
 
   useEffect(() => {
     api.getJob(jobId).then((j) => { setJob(j); setStatus(j.status); if (j.fallbackPolicy) setPolicy(j.fallbackPolicy); }).catch(() => {});
@@ -77,9 +89,15 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
   const confirm = async () => {
     try { const r = await api.confirmCode(jobId, code); setStatus(r.status); setOutcome('paid'); } catch (e) { toast((e as Error).message); }
   };
-  const reportUnavailable = async () => {
-    try { const r = await api.failedAttempt(jobId); setStatus(r.status); setFeeMinor(r.attemptFeeMinor); setOutcome('failed'); } catch (e) { toast((e as Error).message); }
+  const beginWaiting = async () => {
+    try { const r = await api.startWaiting(jobId); setStatus(r.status); setJob((j) => (j ? { ...j, waitStartedAt: r.waitStartedAt } : j)); }
+    catch (e) { toast((e as Error).message); }
   };
+  const requestWaitingFee = async () => {
+    try { const r = await api.chargeWaiting(jobId); Linking.openURL(r.paymentLink); toast('Waiting fee sent to the customer to pay', 'success'); }
+    catch (e) { toast((e as Error).message); }
+  };
+  const refreshJob = async () => { try { setJob(await api.getJob(jobId)); } catch { /* noop */ } };
   const release = async () => {
     try { await api.releaseJob(jobId); toast('Job released — back to the pool', 'success'); navigation.goBack(); }
     catch (e) { toast((e as Error).message); }
@@ -126,18 +144,39 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
         )}
 
         {done ? (
-          outcome === 'paid' ? (
-            <Mono style={{ color: t.success, fontWeight: '700' }}>PAID ✓ — released to your wallet</Mono>
-          ) : (
-            <Card><Mono style={{ color: t.warning, fontWeight: '700', marginBottom: 6 }}>DELIVERY FAILED — RECEIVER UNAVAILABLE</Mono>
-              <Text style={{ fontSize: 13, color: t.ink2, lineHeight: 19 }}>
-                {policy === 'RETURN' ? 'Please return the parcel to the sender. ' : ''}
-                {feeMinor !== null ? `${naira(feeMinor)} (attempt + any waiting fee) was paid to you; ` : 'Your attempt fee has been paid; '}
-                the rest was refunded to the customer.
-              </Text></Card>
-          )
+          <Mono style={{ color: t.success, fontWeight: '700' }}>PAID ✓ — released to your wallet</Mono>
         ) : status === 'EN_ROUTE_DROP' ? (
           <Button label="I've arrived (verify GPS)" onPress={arrive} />
+        ) : status === 'WAITING' || status === 'AWAITING_RESOLUTION' ? (
+          <>
+            <Card style={{ marginBottom: 12, borderColor: t.warning }}>
+              <Mono style={{ marginBottom: 6 }}>{graceLeftS > 0 ? 'FREE WAITING' : 'METERED WAITING'}</Mono>
+              <Text style={{ fontSize: 26, fontWeight: '800', fontFamily: t.mono }}>
+                {String(Math.floor(elapsedS / 60)).padStart(2, '0')}:{String(elapsedS % 60).padStart(2, '0')}
+              </Text>
+              <Text style={{ fontSize: 12.5, color: t.ink2, marginTop: 6, lineHeight: 18 }}>
+                {graceLeftS > 0
+                  ? `First 10 minutes are free — ${Math.ceil(graceLeftS / 60)} min left. If no one comes after that, ask the customer to cover the wait.`
+                  : waitingPaid
+                    ? 'Waiting fee paid ✓ — you can hand over once the recipient enters the code.'
+                    : `Waiting fee so far: ${naira(accruedMinor)} (₦50/min after the free 10). The customer must pay it before you hand over.`}
+              </Text>
+              {graceLeftS === 0 && !waitingPaid && (
+                <View style={{ marginTop: 10, gap: 8 }}>
+                  <Button label="Request waiting fee from customer" onPress={requestWaitingFee} />
+                  <Button label="I've been paid — refresh" variant="ghost" onPress={refreshJob} />
+                </View>
+              )}
+            </Card>
+            <Card style={{ marginBottom: 12 }}>
+              <Mono style={{ fontSize: 10 }}>{policy === 'DELEGATE' ? 'ENTER THE CODE (RECEIVER OR THEIR PROXY)' : "ENTER THE RECEIVER'S DELIVERY CODE"}</Mono>
+              <TextInput style={s.codeInput} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={4} />
+              <Button label="Confirm & get paid" onPress={confirm} />
+            </Card>
+            <PressableScale onPress={() => navigation.navigate('Chat', { jobId })} style={[s.chip, { marginTop: 4 }]}>
+              <Mono style={{ color: t.ink }}>MESSAGE THE CUSTOMER →</Mono>
+            </PressableScale>
+          </>
         ) : status === 'ARRIVED' ? (
           <>
             <Card style={{ marginBottom: 12 }}>
@@ -151,11 +190,14 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
               <Card>
                 <Text style={{ fontSize: 14, fontWeight: '700' }}>Receiver unavailable</Text>
                 <Text style={{ fontSize: 12.5, color: t.ink2, marginVertical: 8, lineHeight: 18 }}>
-                  {policy === 'WAIT' && 'The customer chose “wait”: please wait up to 10 minutes (a waiting fee may apply). If they receive it, use the code above instead.'}
-                  {policy === 'DELEGATE' && 'The customer allows a proxy: anyone present can receive it with the code above. Only report failed if no one at all can accept it.'}
-                  {policy === 'RETURN' && 'The customer chose “return”: if no one can receive it, return the parcel to the sender.'}
+                  Start the wait — the first 10 minutes are free. After that you can ask the customer to
+                  cover the wait, or they can choose to have the package returned. You’re paid in full either way.
                 </Text>
-                <Button label={policy === 'RETURN' ? 'Return to sender (end delivery)' : 'Report failed attempt'} variant="ghost" onPress={reportUnavailable} />
+                <Button label="Start waiting (first 10 min free)" onPress={beginWaiting} />
+                <View style={{ height: 8 }} />
+                <PressableScale onPress={() => navigation.navigate('Chat', { jobId })} style={s.chip}>
+                  <Mono style={{ color: t.ink }}>MESSAGE THE CUSTOMER →</Mono>
+                </PressableScale>
               </Card>
             )}
           </>

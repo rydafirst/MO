@@ -14,7 +14,7 @@ import { t } from '../theme';
 const FALLBACK_OPTIONS: { value: Fallback; title: string; desc: string }[] = [
   { value: 'WAIT', title: 'Wait for them', desc: 'The rider waits 10 minutes free. After that a small waiting fee applies (₦50/min, max ₦1,000). Best if the receiver is just running late.' },
   { value: 'DELEGATE', title: 'Let someone else receive it', desc: 'If your receiver isn’t there, anyone present (a colleague, neighbour, security) can accept it with the code. The delivery still completes.' },
-  { value: 'RETURN', title: 'Return it to me', desc: 'If no one can receive it, the rider brings the parcel back to you. The delivery is marked failed and you’re refunded, minus the rider’s trip.' },
+  { value: 'RETURN', title: 'Return it to me', desc: 'If no one can receive it, the rider brings the parcel back to you. Adds a refundable return deposit (75% of the fare) — refunded in full if the delivery completes, or used to pay the rider for the return trip.' },
 ];
 
 export function HomeTab({ navigation }: { navigation: AppNav }) {
@@ -161,18 +161,30 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
         <Spacer h={4} />
         <Button label="Get quote" onPress={getQuote} busy={busy} />
 
-        {quote && (
-          <Card style={{ marginTop: 16 }}>
-            <Row label="Base" value={naira(quote.breakdown.baseMinor)} />
-            <Row label="Distance" value={naira(quote.breakdown.distanceMinor)} />
-            <Row label="Platform fee" value={naira(quote.breakdown.platformFeeMinor)} />
-            <Divider />
-            <Row label="Total" value={naira(quote.breakdown.totalMinor)} strong />
-            <Spacer h={12} />
-            <Button label="Pay & hold in escrow" onPress={pay} busy={busy} />
-            <Mono style={{ textAlign: 'center', marginTop: 8, color: t.ink2, fontSize: 10 }}>HELD SAFELY UNTIL DELIVERY IS CONFIRMED</Mono>
-          </Card>
-        )}
+        {quote && (() => {
+          // "Return it to me" pre-charges a refundable 75% deposit so the rider can be paid to bring
+          // it back if needed. It's refunded in full when the delivery succeeds.
+          const returnDeposit = fallback === 'RETURN' ? Math.round(quote.breakdown.totalMinor * 0.75) : 0;
+          const grandTotal = quote.breakdown.totalMinor + returnDeposit;
+          return (
+            <Card style={{ marginTop: 16 }}>
+              <Row label="Base" value={naira(quote.breakdown.baseMinor)} />
+              <Row label="Distance" value={naira(quote.breakdown.distanceMinor)} />
+              <Row label="Platform fee" value={naira(quote.breakdown.platformFeeMinor)} />
+              {returnDeposit > 0 && <Row label="Return deposit (refundable)" value={naira(returnDeposit)} />}
+              <Divider />
+              <Row label="Total" value={naira(grandTotal)} strong />
+              {returnDeposit > 0 && (
+                <Text style={{ fontSize: 12, color: t.ink2, marginTop: 6, lineHeight: 17 }}>
+                  Includes a {naira(returnDeposit)} return deposit — fully refunded if your delivery is completed, or used to pay the rider if the parcel is returned to you.
+                </Text>
+              )}
+              <Spacer h={12} />
+              <Button label="Pay & hold in escrow" onPress={pay} busy={busy} />
+              <Mono style={{ textAlign: 'center', marginTop: 8, color: t.ink2, fontSize: 10 }}>HELD SAFELY UNTIL DELIVERY IS CONFIRMED</Mono>
+            </Card>
+          );
+        })()}
       </KeyboardScreen>
 
       {/* Explainer sheet for the "receiver unavailable" choice, shown on first Get quote. */}

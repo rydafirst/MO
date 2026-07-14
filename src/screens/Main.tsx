@@ -56,7 +56,7 @@ export function MainScreen({ navigation }: Props) {
       <View style={{ flex: 1 }}>
         {active === 'book' && <HomeTab navigation={navigation} />}
         {active === 'activity' && <ActivityTab navigation={navigation} role={role} />}
-        {active === 'dash' && <RiderHomeTab navigation={navigation} />}
+        {active === 'dash' && <RiderHomeTab navigation={navigation} onOpenPayout={() => setActive('profile')} />}
         {active === 'profile' && <ProfileTab navigation={navigation} onPrimary={() => setActive(role === 'RIDER' ? 'dash' : 'book')} />}
       </View>
 

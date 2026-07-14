@@ -14,6 +14,7 @@ import { MainScreen } from './screens/Main';
 import { TrackScreen } from './screens/Track';
 import { RiderJobScreen } from './screens/RiderJob';
 import { DisputeScreen } from './screens/Dispute';
+import { ChatScreen } from './screens/Chat';
 import { NotificationsScreen } from './screens/Notifications';
 import { DocumentsScreen } from './screens/Documents';
 import { ActivityDetailScreen } from './screens/ActivityDetail';
@@ -25,6 +26,7 @@ export type RootStack = {
   Track: { jobId: string };
   RiderJob: { jobId: string };
   Dispute: { jobId: string };
+  Chat: { jobId: string };
   Notifications: undefined;
   Documents: undefined;
   ActivityDetail: { jobId: string };
@@ -73,6 +75,7 @@ export default function App() {
             <Stack.Screen name="Track" component={TrackScreen} />
             <Stack.Screen name="RiderJob" component={RiderJobScreen} />
             <Stack.Screen name="Dispute" component={DisputeScreen} />
+            <Stack.Screen name="Chat" component={ChatScreen} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
             <Stack.Screen name="Documents" component={DocumentsScreen} />
             <Stack.Screen name="ActivityDetail" component={ActivityDetailScreen} />

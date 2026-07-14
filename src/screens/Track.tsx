@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Linking, ScrollView, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
 import { api, naira, type Account, type Job, type RiderSummary } from '../api';
@@ -86,6 +86,16 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
     catch (e) { toast((e as Error).message); } finally { setCancelling(false); }
   };
   const cancellable = !!job && CANCELLABLE.includes(job.status);
+  const needsResolution = !!job && (job.status === 'WAITING' || job.status === 'AWAITING_RESOLUTION');
+  const waitingDue = !!job?.waitingFeeMinor && !job?.waitingTxId;
+  const payWaiting = async () => {
+    try { const r = await api.payWaiting(jobId); Linking.openURL(r.paymentLink); toast('Opening payment for the waiting fee', 'success'); }
+    catch (e) { toast((e as Error).message); }
+  };
+  const returnToMe = async () => {
+    try { const r = await api.initiateReturn(jobId); if (r.paymentLink) Linking.openURL(r.paymentLink); toast('Return started — pay to bring it back', 'success'); }
+    catch (e) { toast((e as Error).message); }
+  };
 
   // Payment cancelled / order expired: no trip, no charge.
   if (job?.status === 'CANCELLED') {
@@ -142,7 +152,18 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
           <Card style={{ marginBottom: 12 }}>
             <Row label="Status" value={l.text} />
             <Row label="Type" value={job.type} />
+            {job.returnReserveMinor ? (
+              <>
+                <Row label="Delivery fare" value={naira(job.amountMinor - job.returnReserveMinor)} />
+                <Row label="Return deposit (refundable)" value={naira(job.returnReserveMinor)} />
+              </>
+            ) : null}
             <Row label="Amount held in escrow" value={naira(job.amountMinor)} strong />
+            {job.returnReserveMinor ? (
+              <Text style={{ fontSize: 11.5, color: t.ink2, marginTop: 4, lineHeight: 16 }}>
+                Your {naira(job.returnReserveMinor)} return deposit is refunded in full once the delivery is completed.
+              </Text>
+            ) : null}
             <Row label="Job ID" value={`${job.id.slice(0, 8)}…`} mono />
           </Card>
         )}
@@ -180,6 +201,30 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
               </>
             ) : <Button label="Reveal delivery code" variant="ghost" onPress={reveal} />}
           </Card>
+        )}
+
+        {needsResolution && (
+          <Card style={{ marginBottom: 12, borderColor: t.warning }}>
+            <Mono style={{ color: t.warning, marginBottom: 6 }}>RECIPIENT UNAVAILABLE</Mono>
+            <Text style={{ fontSize: 13.5, color: t.ink2, lineHeight: 20, marginBottom: 10 }}>
+              {waitingDue
+                ? `Your rider waited past the free 10 minutes. Pay the waiting fee (${naira(job?.waitingFeeMinor ?? 0)}) so they can hand over — or have it returned to you.`
+                : 'Your rider is at the drop-off but no one has collected. Keep them waiting (a small fee applies after the free 10 minutes) or have the package returned to you at a reduced fee.'}
+            </Text>
+            <Button label={waitingDue ? `Pay waiting fee ${naira(job?.waitingFeeMinor ?? 0)}` : 'Keep waiting & pay the fee'} onPress={payWaiting} />
+            <Spacer h={8} />
+            <Button label="Return the package to me" variant="ghost" onPress={returnToMe} />
+            <Spacer h={8} />
+            <PressableScale onPress={() => navigation.navigate('Chat', { jobId })} style={{ alignItems: 'center', paddingVertical: 8 }}>
+              <Mono style={{ color: t.ink }}>MESSAGE YOUR RIDER →</Mono>
+            </PressableScale>
+          </Card>
+        )}
+
+        {hasRider && !needsResolution && (
+          <PressableScale onPress={() => navigation.navigate('Chat', { jobId })} style={{ marginBottom: 12, alignItems: 'center', paddingVertical: 6 }}>
+            <Mono style={{ color: t.ink2 }}>MESSAGE YOUR RIDER →</Mono>
+          </PressableScale>
         )}
 
         {cancellable && (
