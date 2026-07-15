@@ -156,6 +156,7 @@ export const api = {
   avatarUploadUrl: (contentType: string, sizeBytes: number) => call<{ uploadUrl: string }>(`/me/avatar/upload-url`, { method: 'POST', body: JSON.stringify({ contentType, sizeBytes }) }),
   myAvatar: () => call<{ photoUrl: string | null }>(`/me/avatar`),
   me: () => call<{ id: string; phone: string | null }>(`/me`),
+  deleteAccount: () => call<{ deleted: boolean }>(`/me`, { method: 'DELETE' }),
   pendingRatings: () => call<PendingRating[]>(`/jobs/pending-ratings`),
   rateJob: (id: string, body: { stars: number; comment?: string }) =>
     call<{ id: string }>(`/jobs/${id}/rating`, { method: 'POST', body: JSON.stringify(body) }),

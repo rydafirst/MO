@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadAsync, getInfoAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import { api, type Account } from '../api';
@@ -46,6 +46,27 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
 
   const logout = async () => { setRememberedTab(null); await unregisterForPush(); await clearToken(); navigation.reset({ index: 0, routes: [{ name: 'Landing' }] }); };
 
+  const deleteAccount = () => {
+    Alert.alert(
+      'Delete your account?',
+      'This erases your name, email and photo and signs you out everywhere. It cannot be undone. Records the law requires us to keep are retained without identifying you.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.deleteAccount();
+              setRememberedTab(null); await unregisterForPush(); await clearToken();
+              navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+            } catch (e) { toast((e as Error).message); }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <KeyboardScreen contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
       <H1>Profile</H1>
@@ -79,6 +100,18 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
         <Mono style={{ fontSize: 11 }}>SESSION</Mono>
         <Text style={{ fontSize: 13, color: t.ink2, marginTop: 6, marginBottom: 12 }}>You stay signed in on this device until you log out here.</Text>
         <Button label="Log out" variant="ghost" onPress={logout} />
+      </Card>
+
+      <Spacer h={16} />
+      <Card style={{ borderColor: t.danger }}>
+        <Mono style={{ fontSize: 11, color: t.danger }}>DELETE ACCOUNT</Mono>
+        <Text style={{ fontSize: 13, color: t.ink2, marginTop: 6, marginBottom: 12, lineHeight: 19 }}>
+          Permanently erase your personal data (name, email, photo) and sign out everywhere. Records the
+          law requires us to keep are retained without identifying you.
+        </Text>
+        <PressableScale onPress={deleteAccount} style={{ backgroundColor: t.danger, borderRadius: 10, paddingVertical: 13, alignItems: 'center' }}>
+          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Delete my account</Text>
+        </PressableScale>
       </Card>
     </KeyboardScreen>
   );
