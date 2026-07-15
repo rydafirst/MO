@@ -7,7 +7,7 @@ import { getRole, getToken } from '../lib/session';
 import { Button, Card, Mono, Pill, Screen, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
-const SUPPORT_EMAIL = 'support@rydafirst.ng';
+const SUPPORT_EMAIL = 'support@rydafirst.com';
 
 function vehicleLabel(track: string | null): string {
   return track === 'BIKE' ? 'Motorcycle' : track === 'CAR' ? 'Car / Van' : track === 'KEKE' ? 'Keke' : 'Vehicle';

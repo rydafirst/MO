@@ -18,6 +18,7 @@ import { ChatScreen } from './screens/Chat';
 import { NotificationsScreen } from './screens/Notifications';
 import { DocumentsScreen } from './screens/Documents';
 import { ActivityDetailScreen } from './screens/ActivityDetail';
+import { LegalScreen } from './screens/Legal';
 
 export type RootStack = {
   Landing: undefined;
@@ -30,6 +31,7 @@ export type RootStack = {
   Notifications: undefined;
   Documents: undefined;
   ActivityDetail: { jobId: string };
+  Legal: { doc: 'terms' | 'privacy' };
 };
 const Stack = createNativeStackNavigator<RootStack>();
 const navigationRef = createNavigationContainerRef<RootStack>();
@@ -79,6 +81,7 @@ export default function App() {
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
             <Stack.Screen name="Documents" component={DocumentsScreen} />
             <Stack.Screen name="ActivityDetail" component={ActivityDetailScreen} />
+            <Stack.Screen name="Legal" component={LegalScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </ToastProvider>

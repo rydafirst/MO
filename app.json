@@ -16,7 +16,7 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "ng.rydafirst.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Rydafirst uses your location so customers can track your delivery and you can confirm pickup and drop-off.",

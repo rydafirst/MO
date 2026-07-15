@@ -70,8 +70,8 @@ async function call<T>(path: string, opts: RequestInit & { auth?: boolean } = {}
 
 export const api = {
   // ---- Auth ----
-  requestOtp: (phone: string, email?: string) =>
-    call<{ status: string }>(`/auth/otp/request`, { auth: false, method: 'POST', body: JSON.stringify(email ? { phone, email } : { phone }) }),
+  requestOtp: (phone: string, email?: string, name?: string) =>
+    call<{ status: string }>(`/auth/otp/request`, { auth: false, method: 'POST', body: JSON.stringify({ phone, ...(email ? { email } : {}), ...(name ? { name } : {}) }) }),
   verifyOtp: (phone: string, code: string, role: 'CUSTOMER' | 'RIDER' = 'CUSTOMER') =>
     call<{ accessToken: string; refreshToken: string }>(`/auth/otp/verify`, { auth: false, method: 'POST', body: JSON.stringify({ phone, code, role }) }),
 
@@ -126,6 +126,8 @@ export const api = {
   messages: (id: string) => call<ChatMessage[]>(`/jobs/${id}/messages`),
   sendMessage: (id: string, body: string) =>
     call<ChatMessage>(`/jobs/${id}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
+  reportMessage: (id: string, messageId: string, reason?: string) =>
+    call<{ id: string }>(`/jobs/${id}/messages/${messageId}/report`, { method: 'POST', body: JSON.stringify(reason ? { reason } : {}) }),
   getAvailability: () => call<{ online: boolean }>(`/me/availability`),
   setAvailability: (online: boolean) => call<{ online: boolean }>(`/me/availability`, { method: 'PUT', body: JSON.stringify({ online }) }),
 
