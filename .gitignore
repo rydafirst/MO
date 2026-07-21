@@ -6,6 +6,16 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# Store-publishing credentials. A Google Play service account key can upload releases to your app,
+# so committing one hands publishing rights to anyone who can read the repo. Ignored BEFORE the file
+# is created, so it can never be staged by accident.
+play-service-account.json
+*-service-account*.json
+google-services.json
+*.p8
+*.p12
+*.keystore
 .DS_Store
 *.tsbuildinfo
 .turbo/
