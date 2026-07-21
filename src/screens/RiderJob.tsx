@@ -6,6 +6,7 @@ import type { RootStack } from '../App';
 import { api, naira, type Fallback, type Job } from '../api';
 import { getToken, getUserId } from '../lib/session';
 import { createRiderPublisher } from '../lib/socket';
+import { Map } from '../components/Map';
 import { Button, Card, Mono, PressableScale, Screen, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
@@ -23,9 +24,13 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
   const [policy, setPolicy] = useState<Fallback>('WAIT');
   const [code, setCode] = useState('');
   const [outcome, setOutcome] = useState<'paid' | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const [showUnavailable, setShowUnavailable] = useState(false);
   const [showRelease, setShowRelease] = useState(false);
   const [geoOn, setGeoOn] = useState(false);
+  // The rider's own position, mirrored onto the in-app map. Sourced from the same watcher that
+  // already streams to the customer, so enabling the map costs no extra GPS subscription.
+  const [riderPos, setRiderPos] = useState<{ lat: number; lng: number } | null>(null);
   const [now, setNow] = useState(Date.now());
   const pub = useRef<{ publish: (lat: number, lng: number) => void; close: () => void } | null>(null);
   const done = outcome !== null;
@@ -43,7 +48,7 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
     return () => clearInterval(id);
   }, [status]);
 
-  const [customer, setCustomer] = useState<{ name?: string; photoUrl?: string } | null>(null);
+  const [customer, setCustomer] = useState<{ name?: string; photoUrl?: string; phone?: string; phoneMasked?: boolean } | null>(null);
   useEffect(() => {
     api.getJob(jobId).then((j) => { setJob(j); setStatus(j.status); if (j.fallbackPolicy) setPolicy(j.fallbackPolicy); }).catch(() => {});
     api.jobCustomer(jobId).then(setCustomer).catch(() => {});
@@ -58,7 +63,11 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
       const riderId = getUserId(await getToken());
       pub.current = createRiderPublisher(jobId, riderId);
       sub = await Location.watchPositionAsync({ accuracy: Location.Accuracy.High, distanceInterval: 10, timeInterval: 3000 },
-        (loc) => { if (active) pub.current?.publish(loc.coords.latitude, loc.coords.longitude); });
+        (loc) => {
+          if (!active) return;
+          pub.current?.publish(loc.coords.latitude, loc.coords.longitude);
+          setRiderPos({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+        });
     })();
     return () => { active = false; sub?.remove(); pub.current?.close(); pub.current = null; };
   }, [geoOn, done, jobId]);
@@ -88,8 +97,33 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
     const p = await posOr('Location needed to verify arrival'); if (!p) return;
     try { const j = await api.arrive(jobId, p.lat, p.lng); setStatus(j.status); } catch (e) { toast((e as Error).message); }
   };
+  /**
+   * Submit the receiver's code.
+   *
+   * The delivery is confirmed on the server before the response reaches us, so a network timeout
+   * here does NOT mean the delivery failed. Riders were being shown "Invalid code" on a delivery
+   * that had actually completed. On any failure we re-read the job: if the server says it landed,
+   * the request succeeded and we were simply never told.
+   */
   const confirm = async () => {
-    try { const r = await api.confirmCode(jobId, code); setStatus(r.status); setOutcome('paid'); } catch (e) { toast((e as Error).message); }
+    if (confirming) return; // a second tap would race the first and burn a code attempt
+    setConfirming(true);
+    try {
+      const r = await api.confirmCode(jobId, code);
+      setStatus(r.status);
+      setOutcome('paid');
+    } catch (e) {
+      const landed = await api.getJob(jobId).catch(() => null);
+      if (landed && (landed.status === 'COMPLETED' || landed.status === 'RELEASED')) {
+        setJob(landed);
+        setStatus(landed.status);
+        setOutcome('paid');
+        return;
+      }
+      toast((e as Error).message);
+    } finally {
+      setConfirming(false);
+    }
   };
   const beginWaiting = async () => {
     try { const r = await api.startWaiting(jobId); setStatus(r.status); setJob((j) => (j ? { ...j, waitStartedAt: r.waitStartedAt } : j)); }
@@ -118,8 +152,8 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
 
         {!done && !geoOn && (
           <Card style={{ borderColor: t.warning, marginBottom: 16 }}>
-            <Text style={{ fontSize: 15, fontWeight: '700' }}>Turn on location</Text>
-            <Text style={{ fontSize: 13, color: t.ink2, marginVertical: 8, lineHeight: 19 }}>Share your location so the customer can track you and you can confirm arrival.</Text>
+            <Text style={{ fontSize: t.size.body, fontWeight: '700' }}>Turn on location</Text>
+            <Text style={{ fontSize: t.size.small, color: t.ink2, marginVertical: 8, lineHeight: 19 }}>Share your location so the customer can track you and you can confirm arrival.</Text>
             <Button label="Enable location" onPress={enableLocation} />
           </Card>
         )}
@@ -137,23 +171,42 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
                     <Text style={{ color: '#fff', fontWeight: '700', fontFamily: t.mono }}>{(customer?.name || job.customerName || 'C').trim().charAt(0).toUpperCase()}</Text>
                   </View>
                 )}
-                <View><Mono>CUSTOMER</Mono><Text style={{ fontSize: 14, fontWeight: '600' }}>{customer?.name || job.customerName || 'Customer'}</Text></View>
+                <View style={{ flex: 1 }}><Mono>CUSTOMER</Mono><Text style={{ fontSize: t.size.body, fontWeight: '600' }}>{customer?.name || job.customerName || 'Customer'}</Text></View>
+                {/* Reach the SENDER. The recipient's number below is a different person — riders
+                    previously had no way to call the person who booked the delivery. */}
+                {customer?.phone ? (
+                  <PressableScale onPress={() => Linking.openURL(`tel:${customer.phone}`)} style={s.chip}><Mono style={{ color: t.ink }}>CALL</Mono></PressableScale>
+                ) : null}
+                <PressableScale onPress={() => navigation.navigate('Chat', { jobId })} style={s.chip}><Mono style={{ color: t.ink }}>MESSAGE</Mono></PressableScale>
               </View>
             ) : null}
             {job.pickupAddress ? <Detail label="Pickup" value={job.pickupAddress} /> : null}
             {job.dropoffAddress ? <Detail label="Drop-off" value={job.dropoffAddress} /> : null}
             {job.recipient ? (
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <View><Text style={{ fontSize: 14, fontWeight: '600' }}>{job.recipient.name}</Text><Mono>{job.recipient.phone}</Mono></View>
+                <View><Mono>RECIPIENT</Mono><Text style={{ fontSize: t.size.body, fontWeight: '600' }}>{job.recipient.name}</Text><Mono>{job.recipient.phone}</Mono></View>
                 <PressableScale onPress={() => Linking.openURL(`tel:${job.recipient?.phone}`)} style={s.chip}><Mono style={{ color: t.ink }}>CALL</Mono></PressableScale>
               </View>
             ) : null}
             {job.item ? <Detail label="Sending" value={job.item} /> : null}
             {job.weightGrams ? <Detail label="Weight" value={`${(job.weightGrams / 1000).toLocaleString()} kg`} /> : null}
             {job.instructions ? <Detail label="Notes" value={job.instructions} /> : null}
+            {/* The rider previously had no map at all — only links that threw them out of the app
+                into Google Maps. Same keyless Leaflet component the customer's tracking screen
+                uses, so there is one map implementation and no API key on the device. */}
+            {(job.pickup || job.dropoff) ? (
+              <View style={{ marginTop: t.space.md }}>
+                <Map
+                  pickup={job.pickup ?? null}
+                  dropoff={job.dropoff ?? null}
+                  rider={riderPos}
+                  height={220}
+                />
+              </View>
+            ) : null}
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-              <PressableScale onPress={() => navTo(job.pickup)} style={[s.chip, { flex: 1 }]}><Mono style={{ color: t.ink, fontSize: 10.5 }}>NAVIGATE TO PICKUP</Mono></PressableScale>
-              <PressableScale onPress={() => navTo(job.dropoff)} style={[s.chip, { flex: 1 }]}><Mono style={{ color: t.ink, fontSize: 10.5 }}>NAVIGATE TO DROP-OFF</Mono></PressableScale>
+              <PressableScale onPress={() => navTo(job.pickup)} style={[s.chip, { flex: 1 }]}><Mono style={{ color: t.ink, fontSize: t.size.caption }}>NAVIGATE TO PICKUP</Mono></PressableScale>
+              <PressableScale onPress={() => navTo(job.dropoff)} style={[s.chip, { flex: 1 }]}><Mono style={{ color: t.ink, fontSize: t.size.caption }}>NAVIGATE TO DROP-OFF</Mono></PressableScale>
             </View>
           </Card>
         )}
@@ -166,10 +219,10 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
           <>
             <Card style={{ marginBottom: 12, borderColor: t.warning }}>
               <Mono style={{ marginBottom: 6 }}>{graceLeftS > 0 ? 'FREE WAITING' : 'METERED WAITING'}</Mono>
-              <Text style={{ fontSize: 26, fontWeight: '800', fontFamily: t.mono }}>
+              <Text style={{ fontSize: t.size.title, fontWeight: '800', fontFamily: t.mono }}>
                 {String(Math.floor(elapsedS / 60)).padStart(2, '0')}:{String(elapsedS % 60).padStart(2, '0')}
               </Text>
-              <Text style={{ fontSize: 12.5, color: t.ink2, marginTop: 6, lineHeight: 18 }}>
+              <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 6, lineHeight: 18 }}>
                 {graceLeftS > 0
                   ? `First 10 minutes are free — ${Math.ceil(graceLeftS / 60)} min left. If no one comes after that, ask the customer to cover the wait.`
                   : waitingPaid
@@ -184,9 +237,9 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
               )}
             </Card>
             <Card style={{ marginBottom: 12 }}>
-              <Mono style={{ fontSize: 10 }}>{policy === 'DELEGATE' ? 'ENTER THE CODE (RECEIVER OR THEIR PROXY)' : "ENTER THE RECEIVER'S DELIVERY CODE"}</Mono>
+              <Mono style={{ fontSize: t.size.caption }}>{policy === 'DELEGATE' ? 'ENTER THE CODE (RECEIVER OR THEIR PROXY)' : "ENTER THE RECEIVER'S DELIVERY CODE"}</Mono>
               <TextInput style={s.codeInput} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={4} />
-              <Button label="Confirm & get paid" onPress={confirm} />
+              <Button label={confirming ? 'Confirming…' : 'Confirm & get paid'} onPress={confirm} busy={confirming} />
             </Card>
             <PressableScale onPress={() => navigation.navigate('Chat', { jobId })} style={[s.chip, { marginTop: 4 }]}>
               <Mono style={{ color: t.ink }}>MESSAGE THE CUSTOMER →</Mono>
@@ -195,16 +248,16 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
         ) : status === 'ARRIVED' ? (
           <>
             <Card style={{ marginBottom: 12 }}>
-              <Mono style={{ fontSize: 10 }}>{policy === 'DELEGATE' ? 'ENTER THE CODE (RECEIVER OR THEIR PROXY)' : "ENTER THE RECEIVER'S DELIVERY CODE"}</Mono>
+              <Mono style={{ fontSize: t.size.caption }}>{policy === 'DELEGATE' ? 'ENTER THE CODE (RECEIVER OR THEIR PROXY)' : "ENTER THE RECEIVER'S DELIVERY CODE"}</Mono>
               <TextInput style={s.codeInput} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={4} />
-              <Button label="Confirm & get paid" onPress={confirm} />
+              <Button label={confirming ? 'Confirming…' : 'Confirm & get paid'} onPress={confirm} busy={confirming} />
             </Card>
             {!showUnavailable ? (
               <PressableScale onPress={() => setShowUnavailable(true)}><Mono style={{ color: t.ink2, textAlign: 'center' }}>RECEIVER NOT AVAILABLE? →</Mono></PressableScale>
             ) : (
               <Card>
-                <Text style={{ fontSize: 14, fontWeight: '700' }}>Receiver unavailable</Text>
-                <Text style={{ fontSize: 12.5, color: t.ink2, marginVertical: 8, lineHeight: 18 }}>
+                <Text style={{ fontSize: t.size.body, fontWeight: '700' }}>Receiver unavailable</Text>
+                <Text style={{ fontSize: t.size.small, color: t.ink2, marginVertical: 8, lineHeight: 18 }}>
                   Start the wait — the first 10 minutes are free. After that you can ask the customer to
                   cover the wait, or they can choose to have the package returned. You’re paid in full either way.
                 </Text>
@@ -223,8 +276,8 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
         {!done && RELEASABLE.includes(status) && (
           showRelease ? (
             <Card style={{ marginTop: 16 }}>
-              <Text style={{ fontSize: 14, fontWeight: '700' }}>Release this job?</Text>
-              <Text style={{ fontSize: 12.5, color: t.ink2, marginVertical: 8, lineHeight: 18 }}>
+              <Text style={{ fontSize: t.size.body, fontWeight: '700' }}>Release this job?</Text>
+              <Text style={{ fontSize: t.size.small, color: t.ink2, marginVertical: 8, lineHeight: 18 }}>
                 It goes back to the pool for another rider — only possible before pickup, and no money moves. Releasing too many jobs can limit the offers you get.
               </Text>
               <Button label="Release to another rider" variant="ghost" onPress={release} />
@@ -242,10 +295,10 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
 }
 
 function Detail({ label, value }: { label: string; value: string }) {
-  return <View style={{ marginBottom: 8 }}><Mono>{label.toUpperCase()}</Mono><Text style={{ fontSize: 13.5, marginTop: 2 }}>{value}</Text></View>;
+  return <View style={{ marginBottom: 8 }}><Mono>{label.toUpperCase()}</Mono><Text style={{ fontSize: t.size.body, marginTop: 2 }}>{value}</Text></View>;
 }
 
 const s = StyleSheet.create({
   chip: { borderWidth: 1, borderColor: t.line, borderRadius: 6, paddingVertical: 8, paddingHorizontal: 12, alignItems: 'center', backgroundColor: t.bg },
-  codeInput: { borderWidth: 1, borderColor: t.line, borderRadius: 6, textAlign: 'center', fontSize: 22, letterSpacing: 8, fontFamily: t.mono, paddingVertical: 10, marginVertical: 12 },
+  codeInput: { borderWidth: 1, borderColor: t.line, borderRadius: 6, textAlign: 'center', fontSize: t.size.dataLg, letterSpacing: 8, fontFamily: t.mono, paddingVertical: 10, marginVertical: 12 },
 });

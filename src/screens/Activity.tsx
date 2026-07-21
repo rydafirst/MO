@@ -68,7 +68,7 @@ export function ActivityTab({ navigation, role }: { navigation: AppNav; role: Ro
           return (
             <PressableScale key={f.key} onPress={() => setFilter(f.key)}>
               <View style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: on ? t.ink : t.line, backgroundColor: on ? t.ink : t.bg }}>
-                <Text style={{ fontFamily: t.mono, fontSize: 11, color: on ? '#fff' : t.ink2 }}>{f.label.toUpperCase()}</Text>
+                <Text style={{ fontFamily: t.mono, fontSize: t.size.caption, color: on ? '#fff' : t.ink2 }}>{f.label.toUpperCase()}</Text>
               </View>
             </PressableScale>
           );
@@ -78,8 +78,8 @@ export function ActivityTab({ navigation, role }: { navigation: AppNav; role: Ro
       {shown === null && <Mono style={{ color: t.mid }}>LOADING…</Mono>}
       {shown?.length === 0 && (
         <Card style={{ alignItems: 'center' }}>
-          <Text style={{ color: t.ink2, fontSize: 14 }}>Nothing here yet.</Text>
-          <Mono style={{ color: t.mid, marginTop: 8, fontSize: 10.5 }}>{isRider ? 'ACCEPT A JOB FROM YOUR DASHBOARD' : 'BOOK A DELIVERY TO GET STARTED'}</Mono>
+          <Text style={{ color: t.ink2, fontSize: t.size.body }}>Nothing here yet.</Text>
+          <Mono style={{ color: t.mid, marginTop: 8, fontSize: t.size.caption }}>{isRider ? 'ACCEPT A JOB FROM YOUR DASHBOARD' : 'BOOK A DELIVERY TO GET STARTED'}</Mono>
         </Card>
       )}
 
@@ -90,13 +90,13 @@ export function ActivityTab({ navigation, role }: { navigation: AppNav; role: Ro
             <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={s.thumb}><TabIcon name="bike" color={t.ink} size={22} /></View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: '700' }} numberOfLines={1}>
+                <Text style={{ fontSize: t.size.body, fontWeight: '700' }} numberOfLines={1}>
                   {j.dropoffArea || j.dropoffAddress || 'Delivery'}
                 </Text>
-                <Mono style={{ fontSize: 10.5, color: t.mid, marginTop: 3 }}>
+                <Mono style={{ fontSize: t.size.caption, color: t.mid, marginTop: 3 }}>
                   {new Date(j.createdAt).toLocaleString('en-NG', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                 </Mono>
-                <Text style={{ fontFamily: t.mono, fontSize: 13, fontWeight: '700', marginTop: 4 }}>{naira(j.amountMinor)}</Text>
+                <Text style={{ fontFamily: t.mono, fontSize: t.size.small, fontWeight: '700', marginTop: 4 }}>{naira(j.amountMinor)}</Text>
               </View>
               <Pill text={b.text} color={b.color} />
             </Card>

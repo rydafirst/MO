@@ -131,9 +131,9 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
       <Screen title="Your delivery" onBack={() => navigation.navigate('Main')}>
         <ScrollView contentContainerStyle={{ padding: 20 }}>
           <Card style={{ alignItems: 'center' }}>
-            <Mono style={{ color: t.warning, fontSize: 11 }}>ORDER EXPIRED</Mono>
-            <Text style={{ fontSize: 18, fontWeight: '700', marginTop: 8 }}>You weren&apos;t charged</Text>
-            <Text style={{ fontSize: 13.5, color: t.ink2, lineHeight: 21, textAlign: 'center', marginVertical: 12 }}>
+            <Mono style={{ color: t.warning, fontSize: t.size.caption }}>ORDER EXPIRED</Mono>
+            <Text style={{ fontSize: t.size.subtitle, fontWeight: '700', marginTop: 8 }}>You weren&apos;t charged</Text>
+            <Text style={{ fontSize: t.size.body, color: t.ink2, lineHeight: 21, textAlign: 'center', marginVertical: 12 }}>
               This order timed out before payment was completed, so it was cancelled and nothing was held in escrow. You can start again whenever you&apos;re ready.
             </Text>
             <Button label="Back to booking" onPress={() => navigation.navigate('Main')} />
@@ -166,16 +166,26 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
                 </View>
               )}
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 15, fontWeight: '700' }}>
+                <Text style={{ fontSize: t.size.body, fontWeight: '700' }}>
                   {rider.name ?? 'Assigned rider'}{rider.nameVerified ? '  ✓' : ''}
                   {rider.ratingCount ? `   ★ ${rider.rating?.toFixed(1)}` : ''}
                 </Text>
-                <Text style={{ fontSize: 12.5, color: t.ink2, marginTop: 2 }}>
+                <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 2 }}>
                   {vehicleLabel(rider.vehicleType)}
                   {rider.vehicleColor ? ` · ${rider.vehicleColor.charAt(0) + rider.vehicleColor.slice(1).toLowerCase()}` : ''}
                   {rider.vehiclePlate ? ` · ${rider.vehiclePlate}` : ''}
                 </Text>
               </View>
+              {/* Only present while the delivery is live — the server withholds the number once the
+                  job ends, so this disappears on its own rather than needing a client-side rule. */}
+              {rider.phone ? (
+                <PressableScale
+                  onPress={() => Linking.openURL(`tel:${rider.phone}`)}
+                  style={{ borderWidth: 1, borderColor: t.line, borderRadius: 6, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: t.bg }}
+                >
+                  <Mono style={{ color: t.ink }}>CALL</Mono>
+                </PressableScale>
+              ) : null}
             </View>
           </Card>
         )}
@@ -192,7 +202,7 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
             ) : null}
             <Row label="Amount held in escrow" value={naira(job.amountMinor)} strong />
             {job.returnReserveMinor ? (
-              <Text style={{ fontSize: 11.5, color: t.ink2, marginTop: 4, lineHeight: 16 }}>
+              <Text style={{ fontSize: t.size.caption, color: t.ink2, marginTop: 4, lineHeight: 16 }}>
                 Your {naira(job.returnReserveMinor)} return deposit is refunded in full once the delivery is completed.
               </Text>
             ) : null}
@@ -218,7 +228,7 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ fontWeight: '700' }}>Your rider</Text>
-              <Mono style={{ fontSize: 11, color: t.mid }}>ASSIGNED · BIKE</Mono>
+              <Mono style={{ fontSize: t.size.caption, color: t.mid }}>ASSIGNED · BIKE</Mono>
             </View>
           </Card>
         ) : (
@@ -231,8 +241,8 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
           <Card style={{ alignItems: 'center', marginBottom: 12 }}>
             {deliveryCode ? (
               <>
-                <Mono style={{ fontSize: 10 }}>DELIVERY CODE</Mono>
-                <Text style={{ fontFamily: t.mono, fontSize: 32, fontWeight: '700', letterSpacing: 6, marginVertical: 6 }}>{deliveryCode}</Text>
+                <Mono style={{ fontSize: t.size.caption }}>DELIVERY CODE</Mono>
+                <Text style={{ fontFamily: t.mono, fontSize: t.size.display, fontWeight: '700', letterSpacing: 6, marginVertical: 6 }}>{deliveryCode}</Text>
                 <Mono style={{ color: t.ink2 }}>GIVE THIS TO YOUR RIDER ON ARRIVAL</Mono>
               </>
             ) : <Button label="Reveal delivery code" variant="ghost" onPress={reveal} />}
@@ -242,7 +252,7 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
         {needsResolution && (
           <Card style={{ marginBottom: 12, borderColor: t.warning }}>
             <Mono style={{ color: t.warning, marginBottom: 6 }}>RECIPIENT UNAVAILABLE</Mono>
-            <Text style={{ fontSize: 13.5, color: t.ink2, lineHeight: 20, marginBottom: 10 }}>
+            <Text style={{ fontSize: t.size.body, color: t.ink2, lineHeight: 20, marginBottom: 10 }}>
               {waitingDue
                 ? `Your rider waited past the free 10 minutes. Pay the waiting fee (${naira(job?.waitingFeeMinor ?? 0)}) so they can hand over — or have it returned to you.`
                 : 'Your rider is at the drop-off but no one has collected. Keep them waiting (a small fee applies after the free 10 minutes) or have the package returned to you at a reduced fee.'}
@@ -266,8 +276,8 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
         {cancellable && (
           showCancel ? (
             <Card style={{ marginBottom: 12 }}>
-              <Text style={{ fontSize: 14, fontWeight: '700' }}>Cancel this order?</Text>
-              <Text style={{ fontSize: 12.5, color: t.ink2, marginVertical: 8, lineHeight: 18 }}>
+              <Text style={{ fontSize: t.size.body, fontWeight: '700' }}>Cancel this order?</Text>
+              <Text style={{ fontSize: t.size.small, color: t.ink2, marginVertical: 8, lineHeight: 18 }}>
                 {job?.status === 'CREATED'
                   ? 'This order isn’t paid yet, so nothing will be charged.'
                   : `You’ll be refunded ${naira(job?.amountMinor ?? 0)} to your original payment method. You can add a bank account below as a backup — it’s optional.`}
@@ -275,7 +285,7 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
 
               {job?.status !== 'CREATED' && !refAcct && (
                 <View style={{ marginBottom: 4 }}>
-                  <Mono style={{ fontSize: 10, marginBottom: 6 }}>BACKUP REFUND ACCOUNT (OPTIONAL)</Mono>
+                  <Mono style={{ fontSize: t.size.caption, marginBottom: 6 }}>BACKUP REFUND ACCOUNT (OPTIONAL)</Mono>
                   <BankAccountForm type="refund" onSaved={setRefAcct} />
                   <Spacer h={10} />
                 </View>
@@ -308,7 +318,7 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
 function Row({ label, value, strong, mono }: { label: string; value: string; strong?: boolean; mono?: boolean }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
-      <Text style={{ color: t.ink2, fontSize: 13 }}>{label}</Text>
+      <Text style={{ color: t.ink2, fontSize: t.size.small }}>{label}</Text>
       <Text style={{ fontFamily: mono ? t.mono : undefined, fontSize: strong ? 15 : 13, fontWeight: strong ? '700' : '400' }}>{value}</Text>
     </View>
   );

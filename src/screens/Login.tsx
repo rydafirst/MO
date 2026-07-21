@@ -64,7 +64,7 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStack, 'L
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bg2 }} edges={['top', 'left', 'right', 'bottom']}>
-      <KeyboardScreen contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}>
+      <KeyboardScreen contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-start', padding: 24, paddingTop: 48, paddingBottom: 48 }}>
         <Text style={sx.h1}>Ryda<Text style={{ fontWeight: '400', color: t.ink2 }}>first</Text></Text>
         <Mono style={{ letterSpacing: 1, marginBottom: 24 }}>RIDERS FIRST</Mono>
 

@@ -62,7 +62,7 @@ const bs = StyleSheet.create({
   // rf-btn: full-width, mono, uppercase, radius lg(8), padding 14/16.
   btn: { backgroundColor: t.primary, borderRadius: t.radius.lg, paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center' },
   ghost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: t.line },
-  txt: { color: t.primaryInk, fontFamily: t.mono, fontWeight: '700', fontSize: 13, letterSpacing: 0.8 },
+  txt: { color: t.primaryInk, fontFamily: t.mono, fontWeight: '700', fontSize: t.size.small, letterSpacing: 0.8 },
   ghostTxt: { color: t.ink },
 });
 
@@ -98,7 +98,7 @@ export function Segmented<T extends string>({ options, value, onChange }: {
 }
 const sg = StyleSheet.create({
   seg: { flex: 1, borderWidth: 1, borderRadius: t.radius.md, paddingVertical: 12, paddingHorizontal: 12, alignItems: 'center', backgroundColor: t.bg },
-  txt: { fontFamily: t.mono, fontSize: 12, fontWeight: '700', letterSpacing: 0.7 },
+  txt: { fontFamily: t.mono, fontSize: t.size.caption, fontWeight: '700', letterSpacing: 0.7 },
 });
 
 export function Divider() { return <View style={{ height: 1, backgroundColor: t.line, marginVertical: 8 }} />; }
@@ -133,7 +133,7 @@ export function Card({ children, style }: { children: React.ReactNode; style?: S
 }
 export function Spacer({ h = 12 }: { h?: number }) { return <View style={{ height: h }} />; }
 export function Mono({ children, style, onPress }: { children: React.ReactNode; style?: StyleProp<TextStyle>; onPress?: () => void }) {
-  return <Text onPress={onPress} style={[{ fontFamily: t.mono, color: t.ink2, fontSize: 11, letterSpacing: 0.6 }, style]}>{children}</Text>;
+  return <Text onPress={onPress} style={[{ fontFamily: t.mono, color: t.ink2, fontSize: t.size.caption, letterSpacing: 0.6 }, style]}>{children}</Text>;
 }
 export function Pill({ text, color = t.ink }: { text: string; color?: string }) {
   return <View style={[us.pill, { backgroundColor: color }]}><Text style={us.pillTxt}>{text.toUpperCase()}</Text></View>;
@@ -145,11 +145,11 @@ export function Field({ label, children }: { label: string; children: React.Reac
 const us = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
   back: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  backTxt: { fontSize: 30, color: t.ink, marginTop: -4 },
-  title: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700', color: t.ink },
+  backTxt: { fontSize: t.size.display, color: t.ink, marginTop: -4 },
+  title: { flex: 1, textAlign: 'center', fontSize: t.size.subtitle, fontWeight: '700', color: t.ink },
   card: { backgroundColor: t.bg, borderWidth: 1, borderColor: t.line, borderRadius: t.radius.md, padding: 16 },
   pill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' },
-  pillTxt: { color: '#fff', fontFamily: t.mono, fontWeight: '700', fontSize: 10, letterSpacing: 0.6 },
+  pillTxt: { color: '#fff', fontFamily: t.mono, fontWeight: '700', fontSize: t.size.caption, letterSpacing: 0.6 },
 });
 
 /* ---------------- Toast (context) ---------------- */
@@ -190,5 +190,5 @@ const ts = StyleSheet.create({
   wrap: { position: 'absolute', left: 20, right: 20, bottom: 34, alignItems: 'center' },
   toast: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.ink, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, maxWidth: 460 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  txt: { color: '#fff', fontSize: 13.5, flexShrink: 1 },
+  txt: { color: '#fff', fontSize: t.size.body, flexShrink: 1 },
 });

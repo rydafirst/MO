@@ -78,18 +78,18 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
       {activeJob && (
         <Card style={{ borderColor: t.ink, marginBottom: 16 }}>
           <Mono>YOU HAVE AN ACTIVE DELIVERY</Mono>
-          <Text style={{ fontSize: 15, fontWeight: '700', marginTop: 4 }}>{naira(activeJob.amountMinor)} · {activeJob.status.replace(/_/g, ' ').toLowerCase()}</Text>
+          <Text style={{ fontSize: t.size.body, fontWeight: '700', marginTop: 4 }}>{naira(activeJob.amountMinor)} · {activeJob.status.replace(/_/g, ' ').toLowerCase()}</Text>
           <Spacer h={10} />
           <Button label="Resume delivery" onPress={() => navigation.navigate('RiderJob', { jobId: activeJob.id })} />
         </Card>
       )}
 
       <Mono>EARNINGS TODAY</Mono>
-      <Text style={{ fontFamily: t.mono, fontSize: 28, fontWeight: '700', color: t.ink }}>{earnings === null ? '—' : naira(earnings)}</Text>
+      <Text style={{ fontFamily: t.mono, fontSize: t.size.dataLg, fontWeight: '700', color: t.ink }}>{earnings === null ? '—' : naira(earnings)}</Text>
 
       {noBank && (
         <Card style={{ borderColor: t.primary, marginTop: 12 }}>
-          <Text style={{ fontSize: 14, color: t.ink }}>Add a payout bank account to start earning — it&apos;s where your delivery money is paid.</Text>
+          <Text style={{ fontSize: t.size.body, color: t.ink }}>Add a payout bank account to start earning — it&apos;s where your delivery money is paid.</Text>
           <Spacer h={8} />
           <Pressable onPress={onOpenPayout}><Mono style={{ color: t.primary }}>ADD YOUR BANK ACCOUNT →</Mono></Pressable>
         </Card>
@@ -116,9 +116,9 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
             <Card key={j.id} style={{ marginBottom: 10 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Mono>{j.type}</Mono>
-                <Text style={{ fontFamily: t.mono, fontSize: 16, fontWeight: '700' }}>{naira(j.amountMinor)}</Text>
+                <Text style={{ fontFamily: t.mono, fontSize: t.size.subtitle, fontWeight: '700' }}>{naira(j.amountMinor)}</Text>
               </View>
-              <Text style={{ fontSize: 13, marginVertical: 8 }}>{j.pickupArea || 'Nearby'} <Text style={{ color: t.mid }}>→</Text> {j.dropoffArea || 'Nearby'}</Text>
+              <Text style={{ fontSize: t.size.small, marginVertical: 8 }}>{j.pickupArea || 'Nearby'} <Text style={{ color: t.mid }}>→</Text> {j.dropoffArea || 'Nearby'}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
                 {j.toPickupMeters !== undefined && (
                   <Mono style={{ color: t.ink }}>{km(j.toPickupMeters)} · ~{j.toPickupEtaMin} MIN AWAY</Mono>
@@ -139,5 +139,5 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
 
 const s = StyleSheet.create({
   statusBox: { height: 150, borderRadius: t.radius.md, backgroundColor: t.ink, alignItems: 'center', justifyContent: 'center', marginVertical: 12 },
-  statusTxt: { color: '#fff', fontFamily: t.mono, fontSize: 13, letterSpacing: 1 },
+  statusTxt: { color: '#fff', fontFamily: t.mono, fontSize: t.size.small, letterSpacing: 1 },
 });

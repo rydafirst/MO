@@ -12,8 +12,16 @@ export const t = {
   primary: '#F97316', primaryPressed: '#E4610C', primarySoft: '#FEEEE0', primaryInk: '#FFFFFF',
   success: '#16A34A', info: '#2563EB', warning: '#A16207', danger: '#DC2626',
 
-  // ---- Type scale (px), mirrors web tokens.size ----
-  size: { display: 34, title: 21, subtitle: 17, body: 15, caption: 11, data: 15, dataLg: 21 },
+  /**
+   * Type scale (px), mirrors web tokens.size.
+   *
+   * Sized for a rider glancing at a phone mid-delivery, often outdoors and in a hurry — testers
+   * reported the rider interface was hard to read. Every step grew; `caption` (the mono micro-labels
+   * that carry status and addresses) grew most, since that was the worst offender. Screens must
+   * consume these rather than hard-coding numbers, or the next size fix has to touch every file
+   * again.
+   */
+  size: { display: 34, title: 26, subtitle: 19, body: 16, small: 14, caption: 12.5, data: 16, dataLg: 26 },
 
   // ---- Spacing scale, mirrors web tokens.space ----
   space: { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24, x3: 32, x4: 40 },
