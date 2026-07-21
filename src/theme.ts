@@ -1,9 +1,14 @@
 import { Platform } from 'react-native';
 
 /**
- * Canonical Rydafirst design tokens for mobile — mirrors web/src/design-tokens.ts and globals.css
- * so the app and web stay visually identical. Screens must consume these tokens (never hard-code
- * colours, sizes, or spacing) so the look stays consistent and can't drift again.
+ * Canonical Rydafirst design tokens for mobile. Mirrors the CSS custom properties in
+ * web/src/app/globals.css (and their literal mirror in web/src/lib/tokens.ts), so the app and web
+ * stay visually identical.
+ *
+ * Screens must consume these tokens and never hard-code colours, sizes or spacing. That rule had
+ * quietly rotted — the rider screens carried 14 distinct hard-coded font sizes and the maps used an
+ * orange that exists nowhere in this file — which is why a legibility fix meant editing 100+ call
+ * sites instead of one line. Keep it at zero.
  */
 export const t = {
   // ---- Colour (identical to web --vars) ----
