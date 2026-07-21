@@ -139,5 +139,5 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
 
 const s = StyleSheet.create({
   statusBox: { height: 150, borderRadius: t.radius.md, backgroundColor: t.ink, alignItems: 'center', justifyContent: 'center', marginVertical: 12 },
-  statusTxt: { color: '#fff', fontFamily: t.mono, fontSize: t.size.small, letterSpacing: 1 },
+  statusTxt: { color: t.onDark, fontFamily: t.mono, fontSize: t.size.small, letterSpacing: 1 },
 });

@@ -89,9 +89,9 @@ export function AddressField({ label, placeholder, onSelect, onFocus, autoLocate
   return (
     <Card style={{ marginBottom: 12 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <Mono style={{ fontSize: 10, letterSpacing: 0.7 }}>{label}</Mono>
+        <Mono style={{ fontSize: t.size.caption, letterSpacing: 0.7 }}>{label}</Mono>
         <PressableScale onPress={useMyLocation} style={{ borderWidth: 1, borderColor: t.line, borderRadius: t.radius.sm, paddingVertical: 3, paddingHorizontal: 8, backgroundColor: t.bg }}>
-          <Mono style={{ color: t.ink, fontSize: 10 }}>USE MY LOCATION</Mono>
+          <Mono style={{ color: t.ink, fontSize: t.size.caption }}>USE MY LOCATION</Mono>
         </PressableScale>
       </View>
       <Input
@@ -107,8 +107,8 @@ export function AddressField({ label, placeholder, onSelect, onFocus, autoLocate
         <View style={{ borderWidth: 1, borderColor: t.line, borderTopWidth: 0, borderBottomLeftRadius: t.radius.md, borderBottomRightRadius: t.radius.md, overflow: 'hidden' }}>
           {preds.map((p) => (
             <PressableScale key={p.placeId} onPress={() => pick(p)} style={{ paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: t.line2 }}>
-              <Text style={{ fontSize: 14, color: t.ink }} numberOfLines={1}>{p.primary}</Text>
-              {p.secondary ? <Text style={{ fontSize: 12, color: t.ink2, marginTop: 1 }} numberOfLines={1}>{p.secondary}</Text> : null}
+              <Text style={{ fontSize: t.size.body, color: t.ink }} numberOfLines={1}>{p.primary}</Text>
+              {p.secondary ? <Text style={{ fontSize: t.size.caption, color: t.ink2, marginTop: 1 }} numberOfLines={1}>{p.secondary}</Text> : null}
             </PressableScale>
           ))}
         </View>

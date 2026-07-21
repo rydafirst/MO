@@ -75,6 +75,6 @@ export function ActiveOrderBanner({ role, navigation }: { role: Role; navigation
 const s = StyleSheet.create({
   wrap: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.ink, paddingVertical: 11, paddingHorizontal: 16 },
   dot: { width: 9, height: 9, borderRadius: 5, backgroundColor: t.primary },
-  text: { flex: 1, color: '#fff', fontSize: 13, fontWeight: '600' },
-  cta: { color: '#fff', fontFamily: t.mono, fontSize: 11, letterSpacing: 0.6 },
+  text: { flex: 1, color: t.onDark, fontSize: t.size.small, fontWeight: '600' },
+  cta: { color: t.onDark, fontFamily: t.mono, fontSize: t.size.caption, letterSpacing: 0.6 },
 });

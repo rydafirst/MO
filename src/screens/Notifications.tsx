@@ -44,8 +44,8 @@ export function NotificationsScreen({ navigation }: NativeStackScreenProps<RootS
         {items === null && <Mono style={{ color: t.mid }}>LOADING…</Mono>}
         {items?.length === 0 && (
           <Card style={{ alignItems: 'center' }}>
-            <Text style={{ color: t.ink2, fontSize: 14 }}>No notifications yet.</Text>
-            <Mono style={{ color: t.mid, marginTop: 6, fontSize: 10.5 }}>UPDATES ABOUT YOUR ORDERS APPEAR HERE</Mono>
+            <Text style={{ color: t.ink2, fontSize: t.size.body }}>No notifications yet.</Text>
+            <Mono style={{ color: t.mid, marginTop: 6, fontSize: t.size.caption }}>UPDATES ABOUT YOUR ORDERS APPEAR HERE</Mono>
           </Card>
         )}
 
@@ -55,11 +55,11 @@ export function NotificationsScreen({ navigation }: NativeStackScreenProps<RootS
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
                   {!n.read && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: t.primary }} />}
-                  <Text style={{ fontSize: 14.5, fontWeight: '700', color: t.ink, flexShrink: 1 }}>{n.title}</Text>
+                  <Text style={{ fontSize: t.size.body, fontWeight: '700', color: t.ink, flexShrink: 1 }}>{n.title}</Text>
                 </View>
-                <Mono style={{ fontSize: 10, color: t.mid }}>{ago(n.createdAt)}</Mono>
+                <Mono style={{ fontSize: t.size.caption, color: t.mid }}>{ago(n.createdAt)}</Mono>
               </View>
-              <Text style={{ fontSize: 13, color: t.ink2, marginTop: 6, lineHeight: 19 }}>{n.body}</Text>
+              <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 6, lineHeight: 19 }}>{n.body}</Text>
             </Card>
           );
           // Tapping an order-related notification jumps to that order's tracking page.

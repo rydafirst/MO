@@ -45,7 +45,7 @@ export function AppHeader({ navigation }: { navigation: AppNav }) {
 
 const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  brand: { fontSize: 20, fontWeight: '700', color: t.ink, letterSpacing: -0.5 },
+  brand: { fontSize: t.size.heading, fontWeight: '700', color: t.ink, letterSpacing: -0.5 },
   bell: { padding: 4 },
   dot: {
     position: 'absolute', top: 2, right: 2, width: 9, height: 9, borderRadius: 5,

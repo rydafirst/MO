@@ -77,12 +77,12 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
           {photoUrl ? (
             <Image source={{ uri: photoUrl }} style={[s.avatar, { backgroundColor: t.bg2 }]} />
           ) : (
-            <View style={s.avatar}><Text style={{ color: '#fff', fontWeight: '700', fontFamily: t.mono }}>{isRider ? 'R' : 'C'}</Text></View>
+            <View style={s.avatar}><Text style={{ color: t.onDark, fontWeight: '700', fontFamily: t.mono }}>{isRider ? 'R' : 'C'}</Text></View>
           )}
         </PressableScale>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: '700' }}>{isRider ? 'Rider account' : 'Customer account'}</Text>
-          <Mono style={{ fontSize: 11, color: t.mid }}>{phone || '—'}</Mono>
+          <Text style={{ fontSize: t.size.body, fontWeight: '700' }}>{isRider ? 'Rider account' : 'Customer account'}</Text>
+          <Mono style={{ fontSize: t.size.caption, color: t.mid }}>{phone || '—'}</Mono>
           <PressableScale onPress={changePhoto} disabled={uploading}>
             <Mono style={{ color: t.ink, marginTop: 6 }}>{uploading ? 'UPLOADING…' : photoUrl ? 'CHANGE PHOTO →' : 'ADD A PHOTO →'}</Mono>
           </PressableScale>
@@ -97,20 +97,20 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
       </Card>
 
       <Card>
-        <Mono style={{ fontSize: 11 }}>SESSION</Mono>
-        <Text style={{ fontSize: 13, color: t.ink2, marginTop: 6, marginBottom: 12 }}>You stay signed in on this device until you log out here.</Text>
+        <Mono style={{ fontSize: t.size.caption }}>SESSION</Mono>
+        <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 6, marginBottom: 12 }}>You stay signed in on this device until you log out here.</Text>
         <Button label="Log out" variant="ghost" onPress={logout} />
       </Card>
 
       <Spacer h={16} />
       <Card style={{ borderColor: t.danger }}>
-        <Mono style={{ fontSize: 11, color: t.danger }}>DELETE ACCOUNT</Mono>
-        <Text style={{ fontSize: 13, color: t.ink2, marginTop: 6, marginBottom: 12, lineHeight: 19 }}>
+        <Mono style={{ fontSize: t.size.caption, color: t.danger }}>DELETE ACCOUNT</Mono>
+        <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 6, marginBottom: 12, lineHeight: 19 }}>
           Permanently erase your personal data (name, email, photo) and sign out everywhere. Records the
           law requires us to keep are retained without identifying you.
         </Text>
         <PressableScale onPress={deleteAccount} style={{ backgroundColor: t.danger, borderRadius: 10, paddingVertical: 13, alignItems: 'center' }}>
-          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Delete my account</Text>
+          <Text style={{ color: t.onDark, fontWeight: '700', fontSize: t.size.body }}>Delete my account</Text>
         </PressableScale>
       </Card>
     </KeyboardScreen>
@@ -127,18 +127,18 @@ function BankAccountCard({ isRider }: { isRider: boolean }) {
 
   return (
     <Card style={{ marginBottom: 16 }}>
-      <Mono style={{ fontSize: 11 }}>{isRider ? 'PAYOUT ACCOUNT' : 'REFUND ACCOUNT (OPTIONAL)'}</Mono>
-      <Text style={{ fontSize: 12.5, color: t.ink2, lineHeight: 18, marginTop: 6, marginBottom: 12 }}>
+      <Mono style={{ fontSize: t.size.caption }}>{isRider ? 'PAYOUT ACCOUNT' : 'REFUND ACCOUNT (OPTIONAL)'}</Mono>
+      <Text style={{ fontSize: t.size.small, color: t.ink2, lineHeight: 18, marginTop: 6, marginBottom: 12 }}>
         {isRider ? 'Where your earnings are paid after each completed delivery.' : 'Refunds normally go back to your original payment method. Add an account only as a fallback.'}
       </Text>
 
       {!editing && loaded && acct && (
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View>
-            <Text style={{ fontSize: 14, fontWeight: '600' }}>{acct.accountName}</Text>
-            <Mono style={{ fontSize: 12, color: t.ink2 }}>{acct.accountNumberMasked} · bank {acct.bankCode}</Mono>
+            <Text style={{ fontSize: t.size.body, fontWeight: '600' }}>{acct.accountName}</Text>
+            <Mono style={{ fontSize: t.size.caption, color: t.ink2 }}>{acct.accountNumberMasked} · bank {acct.bankCode}</Mono>
           </View>
-          <PressableScale onPress={() => setEditing(true)} style={s.chip}><Mono style={{ color: t.ink, fontSize: 11 }}>EDIT</Mono></PressableScale>
+          <PressableScale onPress={() => setEditing(true)} style={s.chip}><Mono style={{ color: t.ink, fontSize: t.size.caption }}>EDIT</Mono></PressableScale>
         </View>
       )}
 
@@ -160,7 +160,7 @@ function BankAccountCard({ isRider }: { isRider: boolean }) {
 function Row({ label, onPress, last }: { label: string; onPress?: () => void; last?: boolean }) {
   return (
     <PressableScale onPress={onPress} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: last ? 0 : 1, borderBottomColor: t.line2 }}>
-      <Text style={{ fontSize: 14, color: t.ink }}>{label}</Text>
+      <Text style={{ fontSize: t.size.body, color: t.ink }}>{label}</Text>
       <Mono style={{ color: t.mid }}>→</Mono>
     </PressableScale>
   );

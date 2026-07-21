@@ -56,19 +56,19 @@ export function BankAccountForm({ type, onSaved }: { type: 'refund' | 'payout'; 
         onPress={() => setPickerOpen(true)}
         style={{ borderWidth: 1, borderColor: t.line, borderRadius: t.radius.md, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 8, backgroundColor: t.bg }}
       >
-        <Text style={{ fontSize: 15, color: bankName ? t.ink : t.mid }}>{bankName || 'Select your bank'}</Text>
+        <Text style={{ fontSize: t.size.body, color: bankName ? t.ink : t.mid }}>{bankName || 'Select your bank'}</Text>
       </Pressable>
 
       <Input placeholder="Account number (10 digits)" keyboardType="number-pad" maxLength={10} value={accountNumber} onChangeText={onNumber} style={{ marginBottom: 8 }} />
       {resolving ? <Mono style={{ color: t.mid, marginBottom: 8 }}>CHECKING ACCOUNT…</Mono> : null}
-      {name ? <Text style={{ fontSize: 14, fontWeight: '700', marginBottom: 8 }}>{name}</Text> : null}
+      {name ? <Text style={{ fontSize: t.size.body, fontWeight: '700', marginBottom: 8 }}>{name}</Text> : null}
       <Button label={saving ? 'Saving…' : 'Save account'} variant="ghost" onPress={save} busy={saving} disabled={!name} />
-      <Mono style={{ fontSize: 10, color: t.mid, marginTop: 8 }}>NAME CONFIRMED WITH YOUR BANK · STORED ENCRYPTED</Mono>
+      <Mono style={{ fontSize: t.size.caption, color: t.mid, marginTop: 8 }}>NAME CONFIRMED WITH YOUR BANK · STORED ENCRYPTED</Mono>
 
       <Modal visible={pickerOpen} animationType="slide" onRequestClose={() => setPickerOpen(false)}>
         <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: 56, paddingHorizontal: 20 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <Text style={{ fontSize: 20, fontWeight: '700', color: t.ink }}>Choose your bank</Text>
+            <Text style={{ fontSize: t.size.heading, fontWeight: '700', color: t.ink }}>Choose your bank</Text>
             <Pressable onPress={() => { setPickerOpen(false); setQuery(''); }}><Mono style={{ color: t.ink2 }}>CLOSE</Mono></Pressable>
           </View>
           <TextInput
@@ -77,7 +77,7 @@ export function BankAccountForm({ type, onSaved }: { type: 'refund' | 'payout'; 
             value={query}
             onChangeText={setQuery}
             autoFocus
-            style={{ borderWidth: 1, borderColor: t.line, borderRadius: t.radius.md, paddingVertical: 12, paddingHorizontal: 14, fontSize: 15, color: t.ink, marginBottom: 8 }}
+            style={{ borderWidth: 1, borderColor: t.line, borderRadius: t.radius.md, paddingVertical: 12, paddingHorizontal: 14, fontSize: t.size.body, color: t.ink, marginBottom: 8 }}
           />
           <FlatList
             data={filtered}
@@ -85,7 +85,7 @@ export function BankAccountForm({ type, onSaved }: { type: 'refund' | 'payout'; 
             keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => (
               <Pressable onPress={() => pickBank(item)} style={{ paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: t.line2 }}>
-                <Text style={{ fontSize: 15, color: t.ink }}>{item.name}</Text>
+                <Text style={{ fontSize: t.size.body, color: t.ink }}>{item.name}</Text>
               </Pressable>
             )}
             ListEmptyComponent={<Text style={{ color: t.mid, paddingVertical: 16 }}>No bank matches “{query}”.</Text>}

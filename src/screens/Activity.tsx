@@ -68,7 +68,7 @@ export function ActivityTab({ navigation, role }: { navigation: AppNav; role: Ro
           return (
             <PressableScale key={f.key} onPress={() => setFilter(f.key)}>
               <View style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: on ? t.ink : t.line, backgroundColor: on ? t.ink : t.bg }}>
-                <Text style={{ fontFamily: t.mono, fontSize: t.size.caption, color: on ? '#fff' : t.ink2 }}>{f.label.toUpperCase()}</Text>
+                <Text style={{ fontFamily: t.mono, fontSize: t.size.caption, color: on ? t.onDark : t.ink2 }}>{f.label.toUpperCase()}</Text>
               </View>
             </PressableScale>
           );

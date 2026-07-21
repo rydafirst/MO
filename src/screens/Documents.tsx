@@ -91,8 +91,8 @@ export function DocumentsScreen({ navigation }: NativeStackScreenProps<RootStack
     <Screen title="Verification" onBack={() => navigation.goBack()}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
         <Card style={{ borderColor: data.onboarding === 'APPROVED' ? t.success : t.line, marginBottom: 16 }}>
-          <Mono style={{ color: t.ink2, fontSize: 10 }}>DOCUMENT STATUS</Mono>
-          <Text style={{ fontSize: 15, fontWeight: '700', marginTop: 6, color: t.ink }}>{ONBOARDING_MSG[data.onboarding]}</Text>
+          <Mono style={{ color: t.ink2, fontSize: t.size.caption }}>DOCUMENT STATUS</Mono>
+          <Text style={{ fontSize: t.size.body, fontWeight: '700', marginTop: 6, color: t.ink }}>{ONBOARDING_MSG[data.onboarding]}</Text>
         </Card>
 
         {!data.track && (
@@ -102,10 +102,10 @@ export function DocumentsScreen({ navigation }: NativeStackScreenProps<RootStack
               <PressableScale key={tr.value} onPress={() => chooseTrack(tr.value)} style={{ marginBottom: 10 }}>
                 <Card style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <View>
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: t.ink }}>{tr.label}</Text>
-                    <Text style={{ fontSize: 12.5, color: t.ink2, marginTop: 2 }}>{tr.hint}</Text>
+                    <Text style={{ fontSize: t.size.body, fontWeight: '700', color: t.ink }}>{tr.label}</Text>
+                    <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 2 }}>{tr.hint}</Text>
                   </View>
-                  <Text style={{ fontSize: 20, color: t.ink2 }}>›</Text>
+                  <Text style={{ fontSize: t.size.heading, color: t.ink2 }}>›</Text>
                 </Card>
               </PressableScale>
             ))}
@@ -129,12 +129,12 @@ export function DocumentsScreen({ navigation }: NativeStackScreenProps<RootStack
                 <PressableScale key={item.type} onPress={() => onRowPress(item)} style={{ marginBottom: 8 }}>
                   <Card style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <View style={{ flexShrink: 1, paddingRight: 10 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '600', color: t.ink }}>{item.label}</Text>
+                      <Text style={{ fontSize: t.size.body, fontWeight: '600', color: t.ink }}>{item.label}</Text>
                       {item.rejectionReason && item.status === 'REJECTED' && (
-                        <Text style={{ fontSize: 12, color: t.danger, marginTop: 3 }}>{item.rejectionReason}</Text>
+                        <Text style={{ fontSize: t.size.caption, color: t.danger, marginTop: 3 }}>{item.rejectionReason}</Text>
                       )}
                       {item.expires && item.expiresAt && (
-                        <Mono style={{ fontSize: 10, color: t.mid, marginTop: 3 }}>
+                        <Mono style={{ fontSize: t.size.caption, color: t.mid, marginTop: 3 }}>
                           EXPIRES {new Date(item.expiresAt).toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' })}
                         </Mono>
                       )}
@@ -211,7 +211,7 @@ function RiderDetailsCard() {
             return (
               <PressableScale key={c} onPress={() => setColor(c)}>
                 <View style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: on ? t.ink : t.line, backgroundColor: on ? t.ink : t.bg }}>
-                  <Text style={{ fontFamily: t.mono, fontSize: 11, color: on ? '#fff' : t.ink2 }}>{c}</Text>
+                  <Text style={{ fontFamily: t.mono, fontSize: t.size.caption, color: on ? t.onDark : t.ink2 }}>{c}</Text>
                 </View>
               </PressableScale>
             );
@@ -241,8 +241,8 @@ function ExpiryModal({ item, onCancel, onConfirm }: {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <Pressable style={ms.overlay} onPress={onCancel}>
           <Pressable style={ms.sheet} onPress={() => {}}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: t.ink }}>{item?.label} — expiry date</Text>
-            <Text style={{ fontSize: 12.5, color: t.ink2, marginTop: 4, marginBottom: 12 }}>
+            <Text style={{ fontSize: t.size.subtitle, fontWeight: '700', color: t.ink }}>{item?.label} — expiry date</Text>
+            <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 4, marginBottom: 12 }}>
               Enter the date this document expires. Format: YYYY-MM-DD.
             </Text>
             <TextInput
@@ -272,6 +272,6 @@ const ms = StyleSheet.create({
   sheet: { backgroundColor: t.bg, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 },
   textInput: {
     borderWidth: 1, borderColor: t.line, borderRadius: t.radius.md, paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 15, color: t.ink, fontFamily: t.mono,
+    fontSize: t.size.body, color: t.ink, fontFamily: t.mono,
   },
 });

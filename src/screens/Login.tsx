@@ -86,18 +86,18 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStack, 'L
           <>
             {isSignup ? (
               <>
-                <Mono style={{ fontSize: 11, marginBottom: 8 }}>FULL NAME</Mono>
+                <Mono style={{ fontSize: t.size.caption, marginBottom: 8 }}>FULL NAME</Mono>
                 <Input value={name} onChangeText={setName} placeholder="e.g. Chidi Okafor" autoCapitalize="words" style={{ marginBottom: 16 }} />
               </>
             ) : null}
-            <Mono style={{ fontSize: 11, marginBottom: 8 }}>PHONE NUMBER</Mono>
+            <Mono style={{ fontSize: t.size.caption, marginBottom: 8 }}>PHONE NUMBER</Mono>
             <Input value={phone} onChangeText={setPhone} placeholder="+234…" keyboardType="phone-pad" style={{ marginBottom: 16 }} />
-            <Mono style={{ fontSize: 11, marginBottom: 8 }}>EMAIL</Mono>
+            <Mono style={{ fontSize: t.size.caption, marginBottom: 8 }}>EMAIL</Mono>
             <Input value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" style={{ marginBottom: 6 }} />
-            <Mono style={{ fontSize: 10, color: t.mid, marginBottom: 16 }}>WE&apos;LL EMAIL YOUR CODE FOR NOW</Mono>
+            <Mono style={{ fontSize: t.size.caption, color: t.mid, marginBottom: 16 }}>WE&apos;LL EMAIL YOUR CODE FOR NOW</Mono>
             <Button label={busy ? 'Sending…' : isSignup ? 'Create account' : 'Send code'} onPress={sendOtp} busy={busy} />
             {isSignup ? (
-              <Text style={{ fontSize: 12, color: t.ink2, lineHeight: 19, marginTop: 14, textAlign: 'center' }}>
+              <Text style={{ fontSize: t.size.caption, color: t.ink2, lineHeight: 19, marginTop: 14, textAlign: 'center' }}>
                 By creating an account you agree to our{' '}
                 <Text style={{ color: t.ink, textDecorationLine: 'underline' }} onPress={() => navigation.navigate('Legal', { doc: 'terms' })}>Terms of Use</Text>
                 {' '}and{' '}
@@ -107,24 +107,24 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStack, 'L
           </>
         ) : (
           <>
-            <Mono style={{ fontSize: 11, marginBottom: 8 }}>ENTER 6-DIGIT CODE</Mono>
-            <Input value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} style={{ marginBottom: 10, textAlign: 'center', fontSize: 22, letterSpacing: 6, fontFamily: t.mono }} />
+            <Mono style={{ fontSize: t.size.caption, marginBottom: 8 }}>ENTER 6-DIGIT CODE</Mono>
+            <Input value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} style={{ marginBottom: 10, textAlign: 'center', fontSize: t.size.heading, letterSpacing: 6, fontFamily: t.mono }} />
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Mono style={{ fontSize: 10.5, color: t.mid }}>SENT TO {email.toUpperCase()}</Mono>
-              <Mono onPress={resend} style={{ fontSize: 11, color: cooldown > 0 || busy ? t.mid : t.ink }}>{cooldown > 0 ? `RESEND IN ${cooldown}S` : 'RESEND CODE'}</Mono>
+              <Mono style={{ fontSize: t.size.caption, color: t.mid }}>SENT TO {email.toUpperCase()}</Mono>
+              <Mono onPress={resend} style={{ fontSize: t.size.caption, color: cooldown > 0 || busy ? t.mid : t.ink }}>{cooldown > 0 ? `RESEND IN ${cooldown}S` : 'RESEND CODE'}</Mono>
             </View>
             <Button label={busy ? 'Working…' : `Verify as ${role === 'RIDER' ? 'rider' : 'customer'}`} onPress={verify} busy={busy} />
             <Mono onPress={() => { setPhase('phone'); setCode(''); setErr(null); setNote(null); }} style={{ marginTop: 12, color: t.ink2 }}>← USE A DIFFERENT EMAIL</Mono>
           </>
         )}
 
-        {note ? <Text style={{ color: t.success, fontSize: 13, marginTop: 8 }}>{note}</Text> : null}
-        {err ? <Text style={{ color: t.danger, fontSize: 13, marginTop: 8 }}>{err}</Text> : null}
+        {note ? <Text style={{ color: t.success, fontSize: t.size.small, marginTop: 8 }}>{note}</Text> : null}
+        {err ? <Text style={{ color: t.danger, fontSize: t.size.small, marginTop: 8 }}>{err}</Text> : null}
       </KeyboardScreen>
     </SafeAreaView>
   );
 }
 
 const sx = StyleSheet.create({
-  h1: { fontSize: 32, fontWeight: '700', color: t.ink, letterSpacing: -0.6 },
+  h1: { fontSize: t.size.display, fontWeight: '700', color: t.ink, letterSpacing: -0.6 },
 });

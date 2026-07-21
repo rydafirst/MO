@@ -13,12 +13,12 @@ export function LandingScreen({ navigation }: NativeStackScreenProps<RootStack, 
       <View style={{ flex: 1, padding: 24 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={s.wordmark}>Ryda<Text style={{ color: t.ink2, fontWeight: '400' }}>first</Text></Text>
-          <Mono onPress={toLogin} style={{ fontSize: 11, color: t.ink2, letterSpacing: 0.7 }}>SIGN IN →</Mono>
+          <Mono onPress={toLogin} style={{ fontSize: t.size.caption, color: t.ink2, letterSpacing: 0.7 }}>SIGN IN →</Mono>
         </View>
 
         <View style={{ flex: 1, justifyContent: 'center' }}>
           <CourierIllustration />
-          <Mono style={{ fontSize: 11, color: t.primary, letterSpacing: 1.6, marginTop: 20 }}>WE ARE FOR RIDERS</Mono>
+          <Mono style={{ fontSize: t.size.caption, color: t.primary, letterSpacing: 1.6, marginTop: 20 }}>WE ARE FOR RIDERS</Mono>
           <Text style={s.h1}>Send anything across town, paid only on delivery.</Text>
           <Text style={s.p}>
             Your money is held safely in escrow and released to the rider the moment your delivery is
@@ -28,7 +28,7 @@ export function LandingScreen({ navigation }: NativeStackScreenProps<RootStack, 
 
         <View style={{ gap: 10, paddingBottom: 8 }}>
           <Button label="Get started" onPress={toLogin} />
-          <Mono onPress={toLogin} style={{ textAlign: 'center', fontSize: 12, color: t.ink, letterSpacing: 0.7, paddingVertical: 4 }}>I WANT TO RIDE & EARN →</Mono>
+          <Mono onPress={toLogin} style={{ textAlign: 'center', fontSize: t.size.caption, color: t.ink, letterSpacing: 0.7, paddingVertical: 4 }}>I WANT TO RIDE & EARN →</Mono>
         </View>
       </View>
     </SafeAreaView>
@@ -79,7 +79,7 @@ function CourierIllustration() {
 }
 
 const s = StyleSheet.create({
-  wordmark: { fontSize: 20, fontWeight: '700', color: t.ink, letterSpacing: -0.4 },
-  h1: { fontSize: 30, fontWeight: '700', color: t.ink, letterSpacing: -0.7, marginTop: 4, lineHeight: 35 },
-  p: { fontSize: 15, color: t.ink2, lineHeight: 22, marginTop: 10 },
+  wordmark: { fontSize: t.size.heading, fontWeight: '700', color: t.ink, letterSpacing: -0.4 },
+  h1: { fontSize: t.size.display, fontWeight: '700', color: t.ink, letterSpacing: -0.7, marginTop: 4, lineHeight: 35 },
+  p: { fontSize: t.size.body, color: t.ink2, lineHeight: 22, marginTop: 10 },
 });

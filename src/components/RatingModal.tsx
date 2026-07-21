@@ -32,8 +32,8 @@ export function RatingModal({ pending, onDone }: { pending: PendingRating | null
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <Pressable style={s.overlay} onPress={close}>
           <Pressable style={s.sheet} onPress={() => {}}>
-            <Text style={{ fontSize: 17, fontWeight: '700', color: t.ink }}>How was your delivery?</Text>
-            <Text style={{ fontSize: 13, color: t.ink2, marginTop: 4 }}>
+            <Text style={{ fontSize: t.size.subtitle, fontWeight: '700', color: t.ink }}>How was your delivery?</Text>
+            <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 4 }}>
               {pending?.riderName ? `Rate ${pending.riderName}` : 'Rate your rider'}
               {pending?.dropoffArea ? ` · to ${pending.dropoffArea}` : ''}
             </Text>
@@ -41,7 +41,7 @@ export function RatingModal({ pending, onDone }: { pending: PendingRating | null
             <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginVertical: 18 }}>
               {[1, 2, 3, 4, 5].map((n) => (
                 <Pressable key={n} onPress={() => setStars(n)} hitSlop={6}>
-                  <Text style={{ fontSize: 38, color: n <= stars ? t.primary : t.line }}>★</Text>
+                  <Text style={{ fontSize: t.size.display, color: n <= stars ? t.primary : t.line }}>★</Text>
                 </Pressable>
               ))}
             </View>
@@ -69,6 +69,6 @@ const s = StyleSheet.create({
   sheet: { backgroundColor: t.bg, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 },
   input: {
     borderWidth: 1, borderColor: t.line, borderRadius: t.radius.md, paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 14, color: t.ink, minHeight: 60, textAlignVertical: 'top',
+    fontSize: t.size.body, color: t.ink, minHeight: 60, textAlignVertical: 'top',
   },
 });

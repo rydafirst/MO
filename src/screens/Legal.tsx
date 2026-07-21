@@ -33,11 +33,11 @@ export function LegalScreen({ route, navigation }: NativeStackScreenProps<RootSt
   return (
     <Screen title={title} onBack={() => navigation.goBack()}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-        <Text style={{ color: t.ink2, fontSize: 11, letterSpacing: 1, marginBottom: 18 }}>LAST UPDATED 14 JULY 2026</Text>
+        <Text style={{ color: t.ink2, fontSize: t.size.caption, letterSpacing: 1, marginBottom: 18 }}>LAST UPDATED 14 JULY 2026</Text>
         {sections.map(([heading, body]) => (
           <View key={heading} style={{ marginBottom: 18 }}>
-            <Text style={{ color: t.ink, fontSize: 16, fontWeight: '700', marginBottom: 6 }}>{heading}</Text>
-            <Text style={{ color: t.ink2, fontSize: 14.5, lineHeight: 21 }}>{body}</Text>
+            <Text style={{ color: t.ink, fontSize: t.size.subtitle, fontWeight: '700', marginBottom: 6 }}>{heading}</Text>
+            <Text style={{ color: t.ink2, fontSize: t.size.body, lineHeight: 21 }}>{body}</Text>
           </View>
         ))}
       </ScrollView>

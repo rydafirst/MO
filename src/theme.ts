@@ -10,6 +10,8 @@ export const t = {
   ink: '#111111', ink2: '#565656', mid: '#A8A8A8',
   line: '#DADADA', line2: '#EDEDED', bg: '#FFFFFF', bg2: '#FAFAFA',
   primary: '#F97316', primaryPressed: '#E4610C', primarySoft: '#FEEEE0', primaryInk: '#FFFFFF',
+  /** Text/icons on a dark or saturated surface (filled pills, avatars, banners). */
+  onDark: '#FFFFFF',
   success: '#16A34A', info: '#2563EB', warning: '#A16207', danger: '#DC2626',
 
   /**
@@ -21,7 +23,7 @@ export const t = {
    * consume these rather than hard-coding numbers, or the next size fix has to touch every file
    * again.
    */
-  size: { display: 34, title: 26, subtitle: 19, body: 16, small: 14, caption: 12.5, data: 16, dataLg: 26 },
+  size: { display: 38, title: 26, heading: 22, subtitle: 19, body: 16, small: 14, caption: 12.5, data: 16, dataLg: 26 },
 
   // ---- Spacing scale, mirrors web tokens.space ----
   space: { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24, x3: 32, x4: 40 },

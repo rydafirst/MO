@@ -162,7 +162,7 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
                 <Image source={{ uri: rider.photoUrl }} style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: t.bg2 }} />
               ) : (
                 <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: t.ink, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ color: '#fff', fontWeight: '700', fontFamily: t.mono }}>{(rider.name ?? 'R').trim().charAt(0).toUpperCase()}</Text>
+                  <Text style={{ color: t.onDark, fontWeight: '700', fontFamily: t.mono }}>{(rider.name ?? 'R').trim().charAt(0).toUpperCase()}</Text>
                 </View>
               )}
               <View style={{ flex: 1 }}>
@@ -224,7 +224,7 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
         {hasRider ? (
           <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
             <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: t.ink, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: '#fff', fontWeight: '700', fontFamily: t.mono }}>R</Text>
+              <Text style={{ color: t.onDark, fontWeight: '700', fontFamily: t.mono }}>R</Text>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ fontWeight: '700' }}>Your rider</Text>
@@ -319,7 +319,7 @@ function Row({ label, value, strong, mono }: { label: string; value: string; str
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
       <Text style={{ color: t.ink2, fontSize: t.size.small }}>{label}</Text>
-      <Text style={{ fontFamily: mono ? t.mono : undefined, fontSize: strong ? 15 : 13, fontWeight: strong ? '700' : '400' }}>{value}</Text>
+      <Text style={{ fontFamily: mono ? t.mono : undefined, fontSize: strong ? t.size.body : t.size.small, fontWeight: strong ? '700' : '400' }}>{value}</Text>
     </View>
   );
 }

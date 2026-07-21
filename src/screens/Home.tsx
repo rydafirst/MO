@@ -115,9 +115,9 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
       <KeyboardScreen contentContainerStyle={{ padding: 20 }}>
         <AppHeader navigation={navigation} />
         <Card style={{ borderColor: t.warning, marginTop: 16 }}>
-          <Mono style={{ color: t.warning, fontSize: 10 }}>ORDER AWAITING PAYMENT</Mono>
-          <Text style={{ fontSize: 15, fontWeight: '700', marginTop: 6 }}>Finish your last order first</Text>
-          <Text style={{ fontSize: 13, color: t.ink2, marginVertical: 8, lineHeight: 19 }}>You have an unpaid order of {naira(pending.amountMinor)}. Complete or cancel it before booking a new one.</Text>
+          <Mono style={{ color: t.warning, fontSize: t.size.caption }}>ORDER AWAITING PAYMENT</Mono>
+          <Text style={{ fontSize: t.size.body, fontWeight: '700', marginTop: 6 }}>Finish your last order first</Text>
+          <Text style={{ fontSize: t.size.small, color: t.ink2, marginVertical: 8, lineHeight: 19 }}>You have an unpaid order of {naira(pending.amountMinor)}. Complete or cancel it before booking a new one.</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <View style={{ flex: 1 }}><Button label="View order" variant="ghost" onPress={() => navigation.navigate('Track', { jobId: pending.id })} /></View>
             <View style={{ flex: 1 }}><Button label="Cancel it" variant="ghost" onPress={async () => { try { await api.cancelJob(pending.id); setPending(null); } catch (e) { toast((e as Error).message); } }} /></View>
@@ -143,10 +143,10 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
 
         {showLocPrompt && (
           <Card style={{ borderColor: t.ink, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Text style={{ fontSize: 20 }}>📍</Text>
+            <Text style={{ fontSize: t.size.heading }}>📍</Text>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, fontWeight: '700' }}>Turn on location</Text>
-              <Text style={{ fontSize: 12.5, color: t.ink2, marginTop: 2 }}>Autofill your pickup from where you are.</Text>
+              <Text style={{ fontSize: t.size.body, fontWeight: '700' }}>Turn on location</Text>
+              <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 2 }}>Autofill your pickup from where you are.</Text>
             </View>
             <View style={{ width: 96 }}><Button label="Enable" onPress={() => { setShowLocPrompt(false); setLocateSignal((n) => n + 1); }} /></View>
           </Card>
@@ -174,7 +174,7 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
             <Field label="If receiver unavailable">
               <View style={{ gap: 6 }}>
                 {FALLBACK_OPTIONS.map((f) => (
-                  <Mono key={f.value} onPress={() => setFallback(f.value)} style={{ color: fallback === f.value ? t.ink : t.mid, fontSize: 13, paddingVertical: 4 }}>
+                  <Mono key={f.value} onPress={() => setFallback(f.value)} style={{ color: fallback === f.value ? t.ink : t.mid, fontSize: t.size.small, paddingVertical: 4 }}>
                     {fallback === f.value ? '● ' : '○ '}{f.title}
                   </Mono>
                 ))}
@@ -201,13 +201,13 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
               <Divider />
               <Row label="Total" value={naira(grandTotal)} strong />
               {returnDeposit > 0 && (
-                <Text style={{ fontSize: 12, color: t.ink2, marginTop: 6, lineHeight: 17 }}>
+                <Text style={{ fontSize: t.size.caption, color: t.ink2, marginTop: 6, lineHeight: 17 }}>
                   Includes a {naira(returnDeposit)} return deposit — fully refunded if your delivery is completed, or used to pay the rider if the parcel is returned to you.
                 </Text>
               )}
               <Spacer h={12} />
               <Button label="Pay & hold in escrow" onPress={pay} busy={busy} />
-              <Mono style={{ textAlign: 'center', marginTop: 8, color: t.ink2, fontSize: 10 }}>HELD SAFELY UNTIL DELIVERY IS CONFIRMED</Mono>
+              <Mono style={{ textAlign: 'center', marginTop: 8, color: t.ink2, fontSize: t.size.caption }}>HELD SAFELY UNTIL DELIVERY IS CONFIRMED</Mono>
             </Card>
           );
         })()}
@@ -217,17 +217,17 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
       <Modal visible={showFallback} transparent animationType="slide" onRequestClose={confirmFallback}>
         <Pressable style={ms.overlay} onPress={confirmFallback}>
           <Pressable style={ms.sheet} onPress={() => {}}>
-            <Text style={{ fontSize: 17, fontWeight: '700' }}>If your receiver isn’t available</Text>
-            <Text style={{ fontSize: 13, color: t.ink2, marginTop: 4, marginBottom: 14 }}>Pick what the rider should do. You can change this any time before paying.</Text>
+            <Text style={{ fontSize: t.size.subtitle, fontWeight: '700' }}>If your receiver isn’t available</Text>
+            <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 4, marginBottom: 14 }}>Pick what the rider should do. You can change this any time before paying.</Text>
             {FALLBACK_OPTIONS.map((o) => {
               const active = fallback === o.value;
               return (
                 <Pressable key={o.value} onPress={() => setFallback(o.value)} style={[ms.opt, { borderColor: active ? t.ink : t.line, backgroundColor: active ? t.bg2 : t.bg }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                     <View style={{ width: 16, height: 16, borderRadius: 8, borderWidth: 4, borderColor: active ? t.primary : t.line }} />
-                    <Text style={{ fontSize: 14, fontWeight: '700' }}>{o.title}</Text>
+                    <Text style={{ fontSize: t.size.body, fontWeight: '700' }}>{o.title}</Text>
                   </View>
-                  <Text style={{ fontSize: 12.5, color: t.ink2, marginLeft: 24, lineHeight: 18 }}>{o.desc}</Text>
+                  <Text style={{ fontSize: t.size.small, color: t.ink2, marginLeft: 24, lineHeight: 18 }}>{o.desc}</Text>
                 </Pressable>
               );
             })}
@@ -246,8 +246,8 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
-      <Text style={{ color: t.ink2, fontSize: 13 }}>{label}</Text>
-      <Text style={{ fontFamily: t.mono, fontSize: strong ? 15 : 13, fontWeight: strong ? '700' : '400' }}>{value}</Text>
+      <Text style={{ color: t.ink2, fontSize: t.size.small }}>{label}</Text>
+      <Text style={{ fontFamily: t.mono, fontSize: strong ? t.size.body : t.size.small, fontWeight: strong ? '700' : '400' }}>{value}</Text>
     </View>
   );
 }

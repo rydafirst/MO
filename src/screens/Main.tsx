@@ -83,5 +83,5 @@ const s = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg2 },
   bar: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: t.line, backgroundColor: t.bg, paddingTop: 10 },
   tab: { flex: 1, alignItems: 'center', gap: 4 },
-  tabTxt: { fontFamily: t.mono, fontSize: 9.5, fontWeight: '700', letterSpacing: 0.8 },
+  tabTxt: { fontFamily: t.mono, fontSize: t.size.caption, fontWeight: '700', letterSpacing: 0.8 },
 });

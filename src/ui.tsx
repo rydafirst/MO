@@ -149,7 +149,7 @@ const us = StyleSheet.create({
   title: { flex: 1, textAlign: 'center', fontSize: t.size.subtitle, fontWeight: '700', color: t.ink },
   card: { backgroundColor: t.bg, borderWidth: 1, borderColor: t.line, borderRadius: t.radius.md, padding: 16 },
   pill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' },
-  pillTxt: { color: '#fff', fontFamily: t.mono, fontWeight: '700', fontSize: t.size.caption, letterSpacing: 0.6 },
+  pillTxt: { color: t.onDark, fontFamily: t.mono, fontWeight: '700', fontSize: t.size.caption, letterSpacing: 0.6 },
 });
 
 /* ---------------- Toast (context) ---------------- */
@@ -190,5 +190,5 @@ const ts = StyleSheet.create({
   wrap: { position: 'absolute', left: 20, right: 20, bottom: 34, alignItems: 'center' },
   toast: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.ink, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 16, maxWidth: 460 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  txt: { color: '#fff', fontSize: t.size.body, flexShrink: 1 },
+  txt: { color: t.onDark, fontSize: t.size.body, flexShrink: 1 },
 });

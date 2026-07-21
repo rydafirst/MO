@@ -48,6 +48,12 @@ export interface RiderProfile { track: VehicleTrack | null; legalName?: string; 
 // `phone` is present only while the job is in flight, and only for the counterparty. `phoneMasked`
 // says whether it is a proxy number — dial whatever is given and don't cache it.
 export interface RiderSummary { name?: string; nameVerified: boolean; vehicleType: VehicleTrack | null; vehiclePlate?: string; vehicleColor?: string; rating?: number; ratingCount?: number; photoUrl?: string; phone?: string; phoneMasked?: boolean }
+/** Per-stage durations for a delivery. `open` marks the stage still running. */
+export interface JobTimings {
+  stages: Array<{ status: string; ms: number; open: boolean }>;
+  currentStageMs: number;
+  totalMs: number;
+}
 export interface PendingRating { jobId: string; amountMinor: number; createdAt: string; dropoffArea?: string; riderName?: string }
 
 const uuid = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -154,6 +160,7 @@ export const api = {
   updateRiderProfile: (body: { legalName?: string; vehiclePlate?: string; vehicleColor?: VehicleColor }) =>
     call<RiderProfile>(`/me/documents/profile`, { method: 'PUT', body: JSON.stringify(body) }),
   jobRider: (id: string) => call<{ rider: RiderSummary | null }>(`/jobs/${id}/rider`),
+  jobTimings: (id: string) => call<JobTimings>(`/jobs/${id}/timings`),
   jobCustomer: (id: string) => call<{ name?: string; photoUrl?: string; phone?: string; phoneMasked?: boolean }>(`/jobs/${id}/customer`),
   avatarUploadUrl: (contentType: string, sizeBytes: number) => call<{ uploadUrl: string }>(`/me/avatar/upload-url`, { method: 'POST', body: JSON.stringify({ contentType, sizeBytes }) }),
   myAvatar: () => call<{ photoUrl: string | null }>(`/me/avatar`),

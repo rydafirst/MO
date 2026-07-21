@@ -94,12 +94,12 @@ export function ChatScreen({ route, navigation }: NativeStackScreenProps<RootSta
     return (
       <Screen title="Community guidelines" onBack={() => navigation.goBack()}>
         <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }}>
-          <Text style={{ color: t.ink, fontSize: 18, fontWeight: '700' }}>Before you chat</Text>
-          <Text style={{ color: t.ink2, fontSize: 14.5, lineHeight: 21 }}>
+          <Text style={{ color: t.ink, fontSize: t.size.subtitle, fontWeight: '700' }}>Before you chat</Text>
+          <Text style={{ color: t.ink2, fontSize: t.size.body, lineHeight: 21 }}>
             Rydafirst has zero tolerance for abusive, harassing, hateful, or otherwise objectionable
             content and behaviour. Keep messages respectful and related to the delivery.
           </Text>
-          <Text style={{ color: t.ink2, fontSize: 14.5, lineHeight: 21 }}>
+          <Text style={{ color: t.ink2, fontSize: t.size.body, lineHeight: 21 }}>
             You can report any message by pressing and holding it. Reports are reviewed within 24
             hours and offending users are removed. By continuing you agree to these terms.
           </Text>
@@ -129,7 +129,7 @@ export function ChatScreen({ route, navigation }: NativeStackScreenProps<RootSta
                 delayLongPress={350}
                 style={[s.bubble, mine ? s.mine : s.theirs]}
               >
-                <Text style={{ color: mine ? t.bg : t.ink, fontSize: 14.5, lineHeight: 20 }}>{item.body}</Text>
+                <Text style={{ color: mine ? t.bg : t.ink, fontSize: t.size.body, lineHeight: 20 }}>{item.body}</Text>
                 {!mine ? <Text style={s.hint}>Hold to report</Text> : null}
               </Pressable>
             );
@@ -156,7 +156,7 @@ const s = StyleSheet.create({
   bubble: { maxWidth: '80%', borderRadius: 14, paddingVertical: 9, paddingHorizontal: 13 },
   mine: { alignSelf: 'flex-end', backgroundColor: t.ink },
   theirs: { alignSelf: 'flex-start', backgroundColor: t.bg2, borderWidth: 1, borderColor: t.line },
-  hint: { color: t.ink2, fontSize: 10.5, marginTop: 3, opacity: 0.7 },
+  hint: { color: t.ink2, fontSize: t.size.caption, marginTop: 3, opacity: 0.7 },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: t.line, backgroundColor: t.bg },
-  input: { flex: 1, borderWidth: 1, borderColor: t.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, maxHeight: 120, fontSize: 14.5, color: t.ink, backgroundColor: t.bg2 },
+  input: { flex: 1, borderWidth: 1, borderColor: t.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, maxHeight: 120, fontSize: t.size.body, color: t.ink, backgroundColor: t.bg2 },
 });
