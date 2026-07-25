@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, FlatList, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
@@ -111,43 +111,47 @@ export function ChatScreen({ route, navigation }: NativeStackScreenProps<RootSta
     );
   }
 
+  // No KeyboardAvoidingView here on purpose: the shared <Screen> already wraps its children in one
+  // (padding on iOS), and Android resizes the window (softwareKeyboardLayoutMode: "resize" in app.json)
+  // so the composer stays above the keyboard. A second nested KAV used to fight the outer one and left
+  // the input hidden behind the keyboard on Android — this keeps a single, correct avoidance path.
   return (
     <Screen title="Messages" onBack={() => navigation.goBack()}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
-        <FlatList
-          ref={listRef}
-          data={messages}
-          keyExtractor={(m) => m.id}
-          contentContainerStyle={{ padding: 16, gap: 8 }}
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
-          ListEmptyComponent={<Text style={{ color: t.ink2, textAlign: 'center', marginTop: 40 }}>No messages yet. Say hello 👋</Text>}
-          renderItem={({ item }) => {
-            const mine = item.senderId === me;
-            return (
-              <Pressable
-                onLongPress={() => { if (!mine) report(item); }}
-                delayLongPress={350}
-                style={[s.bubble, mine ? s.mine : s.theirs]}
-              >
-                <Text style={{ color: mine ? t.bg : t.ink, fontSize: t.size.body, lineHeight: 20 }}>{item.body}</Text>
-                {!mine ? <Text style={s.hint}>Hold to report</Text> : null}
-              </Pressable>
-            );
-          }}
+      <FlatList
+        ref={listRef}
+        style={{ flex: 1 }}
+        data={messages}
+        keyExtractor={(m) => m.id}
+        contentContainerStyle={{ padding: 16, gap: 8 }}
+        keyboardShouldPersistTaps="handled"
+        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
+        ListEmptyComponent={<Text style={{ color: t.ink2, textAlign: 'center', marginTop: 40 }}>No messages yet. Say hello 👋</Text>}
+        renderItem={({ item }) => {
+          const mine = item.senderId === me;
+          return (
+            <Pressable
+              onLongPress={() => { if (!mine) report(item); }}
+              delayLongPress={350}
+              style={[s.bubble, mine ? s.mine : s.theirs]}
+            >
+              <Text style={{ color: mine ? t.bg : t.ink, fontSize: t.size.body, lineHeight: 20 }}>{item.body}</Text>
+              {!mine ? <Text style={s.hint}>Hold to report</Text> : null}
+            </Pressable>
+          );
+        }}
+      />
+      <View style={s.composer}>
+        <TextInput
+          style={s.input}
+          value={draft}
+          onChangeText={setDraft}
+          placeholder="Type a message…"
+          placeholderTextColor={t.ink2}
+          multiline
+          onSubmitEditing={send}
         />
-        <View style={s.composer}>
-          <TextInput
-            style={s.input}
-            value={draft}
-            onChangeText={setDraft}
-            placeholder="Type a message…"
-            placeholderTextColor={t.ink2}
-            multiline
-            onSubmitEditing={send}
-          />
-          <View style={{ width: 92 }}><Button label="Send" onPress={send} /></View>
-        </View>
-      </KeyboardAvoidingView>
+        <View style={{ width: 92 }}><Button label="Send" onPress={send} /></View>
+      </View>
     </Screen>
   );
 }

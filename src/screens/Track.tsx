@@ -7,6 +7,7 @@ import { api, naira, type Account, type Job, type RiderSummary } from '../api';
 import { getToken, getUserId } from '../lib/session';
 import { useJobLocation } from '../lib/socket';
 import { Map } from '../components/Map';
+import { useRoute } from '../lib/routing';
 import { BankAccountForm } from '../components/BankAccountForm';
 import { Button, Card, Mono, Pill, PressableScale, Screen, Spacer, useToast } from '../ui';
 import { t } from '../theme';
@@ -90,6 +91,7 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
 
   const { point } = useJobLocation(jobId, uid);
   const hasRider = !!job && HAS_RIDER.includes(job.status);
+  const tripRoute = useRoute(job?.pickup, job?.dropoff); // road-following line for the tracking map
 
   // Once a rider is assigned, load their public details (name + vehicle) to show the customer.
   const [rider, setRider] = useState<RiderSummary | null>(null);
@@ -211,7 +213,16 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
 
         {job && (job.pickup || job.dropoff) ? (
           <View style={{ marginBottom: 12 }}>
-            <Map pickup={job.pickup} dropoff={job.dropoff} rider={hasRider ? point : null} height={320} />
+            <Map
+              pickup={job.pickup}
+              dropoff={job.dropoff}
+              rider={hasRider ? point : null}
+              route={tripRoute?.points ?? null}
+              vehicle={rider?.vehicleType ?? null}
+              distanceMeters={tripRoute?.distanceMeters}
+              durationSeconds={tripRoute?.durationSeconds}
+              height={320}
+            />
             {hasRider && !point && <Mono style={{ color: t.mid, textAlign: 'center', marginTop: 6 }}>WAITING FOR RIDER LOCATION…</Mono>}
             {hasRider && (
               <View style={{ marginTop: 10 }}>

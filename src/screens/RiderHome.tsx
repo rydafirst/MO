@@ -7,8 +7,7 @@ import { AppHeader } from '../components/AppHeader';
 import { JobsMap, type JobPin } from '../components/JobsMap';
 import { Button, Card, Mono, Spacer, useToast } from '../ui';
 import { t } from '../theme';
-
-const ACTIVE = ['ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS', 'EN_ROUTE_DROP', 'ARRIVED', 'AWAITING_CODE'];
+import { isRiderActive } from '../lib/jobStatus';
 /** Metres -> "X.X km" for the rider's job cards. */
 const km = (m: number) => `${(Math.round(m / 100) / 10).toFixed(1)} KM`;
 
@@ -24,7 +23,7 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
   const loadOnce = useCallback(async () => {
     await Promise.all([
       api.getAvailability().then((a) => setOnline(a.online)).catch(() => {}),
-      api.assignedJobs().then((js) => setActiveJob(js.find((j) => ACTIVE.includes(j.status)) ?? null)).catch(() => {}),
+      api.assignedJobs().then((js) => setActiveJob(js.find((j) => isRiderActive(j.status)) ?? null)).catch(() => {}),
       api.wallet().then((w) => setEarnings(w.releasedMinor)).catch(() => setEarnings(null)),
       api.getAccount().then((a) => setHasBank(a != null)).catch(() => setHasBank(null)),
     ]);
@@ -67,6 +66,9 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
 
   const accept = async (id: string) => {
     if (noBank) { onOpenPayout?.(); return; }
+    // Single active delivery: if the rider is already on one, don't accept another — take them to it.
+    // Mirrors the server guard, so the button is a fast local no-op instead of a round-trip that 409s.
+    if (activeJob) { toast('Finish or release your current delivery first'); navigation.navigate('RiderJob', { jobId: activeJob.id }); return; }
     try { const j = await api.accept(id); navigation.navigate('RiderJob', { jobId: j.id }); }
     catch (e) { toast((e as Error).message); loadFeed(); }
   };
@@ -110,6 +112,9 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
       {online && (
         <View style={{ marginTop: 16 }}>
           <Mono style={{ marginBottom: 8 }}>AVAILABLE JOBS</Mono>
+          {activeJob && (
+            <Mono style={{ color: t.ink2, marginBottom: 8 }}>FINISH YOUR ACTIVE DELIVERY TO ACCEPT A NEW ONE</Mono>
+          )}
           {jobs.length === 0 ? (
             <Card style={{ alignItems: 'center' }}><Mono style={{ color: t.mid }}>NO JOBS YET — YOU&apos;LL SEE THEM HERE</Mono></Card>
           ) : jobs.map((j) => (
@@ -125,7 +130,7 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
                 )}
                 <Mono style={{ color: t.mid }}>TRIP {km(j.tripDistanceMeters)} · ~{j.tripEtaMin} MIN</Mono>
               </View>
-              <Button label="Accept job" onPress={() => accept(j.id)} disabled={noBank} />
+              <Button label="Accept job" onPress={() => accept(j.id)} disabled={noBank || !!activeJob} />
             </Card>
           ))}
         </View>

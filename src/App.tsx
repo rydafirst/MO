@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, AppState, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -8,6 +8,9 @@ import { ToastProvider } from './ui';
 import { t } from './theme';
 import { getToken, getRole } from './lib/session';
 import { registerForPush } from './lib/push';
+import { api } from './api';
+import { isRiderActive } from './lib/jobStatus';
+import { TRIP_PRESENCE_KIND } from './lib/tripPresence';
 import { LandingScreen } from './screens/Landing';
 import { LoginScreen } from './screens/Login';
 import { MainScreen } from './screens/Main';
@@ -51,7 +54,15 @@ export default function App() {
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener(async (res) => {
       if (!navigationRef.isReady()) return;
-      const jobId = res.notification.request.content.data?.jobId;
+      const data = res.notification.request.content.data as { jobId?: string; kind?: string };
+      const jobId = data?.jobId;
+      // Our own on-trip presence notification: open that exact delivery, regardless of role. Checked
+      // before the role branch so a rider's presence tap opens the trip (not the job feed like a
+      // "new job nearby" broadcast, which carries a jobId but no kind).
+      if (data?.kind === TRIP_PRESENCE_KIND && typeof jobId === 'string') {
+        navigationRef.navigate('RiderJob', { jobId });
+        return;
+      }
       const role = getRole(await getToken());
       if (role === 'RIDER') {
         navigationRef.navigate('Main');
@@ -62,6 +73,25 @@ export default function App() {
     return () => sub.remove();
   }, []);
 
+  // Riders: on cold start and whenever the app returns to the foreground, resume the delivery they're
+  // actively running. We only redirect FROM the dashboard ('Main') so a rider who intentionally opened
+  // another screen isn't yanked out of it; within a session they can still browse (not accept) the feed.
+  const resumeActiveTrip = useCallback(async () => {
+    if (!navigationRef.isReady()) return;
+    if (getRole(await getToken()) !== 'RIDER') return;
+    const current = navigationRef.getCurrentRoute()?.name;
+    if (current && current !== 'Main') return;
+    try {
+      const active = (await api.assignedJobs()).find((j) => isRiderActive(j.status));
+      if (active) navigationRef.navigate('RiderJob', { jobId: active.id });
+    } catch { /* offline or signed out — leave them on the dashboard */ }
+  }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => { if (s === 'active') void resumeActiveTrip(); });
+    return () => sub.remove();
+  }, [resumeActiveTrip]);
+
   if (!initial) {
     return <View style={{ flex: 1, backgroundColor: t.bg2, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={t.ink} /></View>;
   }
@@ -69,7 +99,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ToastProvider>
-        <NavigationContainer ref={navigationRef}>
+        <NavigationContainer ref={navigationRef} onReady={() => { void resumeActiveTrip(); }}>
           <Stack.Navigator initialRouteName={initial} screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
             <Stack.Screen name="Landing" component={LandingScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />

@@ -3,16 +3,23 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { api } from '../api';
+import { TRIP_PRESENCE_KIND, clearTripPresence } from './tripPresence';
 
 // Foreground behaviour: still show the banner and play the sound so an urgent update (rider
-// assigned, cancelled, failed) is noticed even while the app is open — like Uber.
+// assigned, cancelled, failed) is noticed even while the app is open — like Uber. The one exception
+// is the ongoing on-trip presence notification: it exists for the shade when the app is minimised, so
+// while the app is open we keep it silent (no banner/sound) to avoid buzzing on every stage change.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (n) => {
+    const kind = (n.request.content.data as { kind?: string } | undefined)?.kind;
+    const quiet = kind === TRIP_PRESENCE_KIND;
+    return {
+      shouldShowBanner: !quiet,
+      shouldShowList: true,
+      shouldPlaySound: !quiet,
+      shouldSetBadge: false,
+    };
+  },
 });
 
 // Remember the token we last registered so we don't spam the API on every screen focus,
@@ -60,6 +67,8 @@ export async function registerForPush(): Promise<void> {
 
 /** Remove this device's push token from the user's account (call on sign-out). */
 export async function unregisterForPush(): Promise<void> {
+  // Never leave a "delivery in progress" notification behind after sign-out.
+  await clearTripPresence();
   try {
     if (!registered) return;
     await api.unregisterPushToken(registered);

@@ -6,6 +6,9 @@ import type { RootStack } from '../App';
 import { api, naira, type Fallback, type Job } from '../api';
 import { getToken, getUserId } from '../lib/session';
 import { createRiderPublisher } from '../lib/socket';
+import { isRiderActive } from '../lib/jobStatus';
+import { showTripPresence, clearTripPresence } from '../lib/tripPresence';
+import { useRoute } from '../lib/routing';
 import { Map } from '../components/Map';
 import { Button, Card, Mono, PressableScale, Screen, Spacer, useToast } from '../ui';
 import { t } from '../theme';
@@ -14,6 +17,13 @@ const FLOW = ['EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS', 'EN_ROUTE_DROP'] as
 const RELEASABLE = ['ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP']; // rider may hand back only before pickup
 const LABEL: Record<string, string> = {
   EN_ROUTE_PICKUP: 'Heading to pickup', AT_PICKUP: 'At pickup', IN_PROGRESS: 'Picked up', EN_ROUTE_DROP: 'Heading to drop',
+};
+// Short status shown in the ongoing trip notification (covers every rider-active status, not just FLOW).
+const PRESENCE_LABEL: Record<string, string> = {
+  ACCEPTED: 'Heading to pickup', EN_ROUTE_PICKUP: 'Heading to pickup', AT_PICKUP: 'At pickup',
+  IN_PROGRESS: 'Package picked up', EN_ROUTE_DROP: 'Heading to drop-off',
+  ARRIVED: 'At drop-off', AWAITING_CODE: 'At drop-off',
+  WAITING: 'Waiting for receiver', AWAITING_RESOLUTION: 'Waiting for receiver',
 };
 
 export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<RootStack, 'RiderJob'>) {
@@ -25,6 +35,7 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
   const [code, setCode] = useState('');
   const [outcome, setOutcome] = useState<'paid' | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [stepping, setStepping] = useState(false);
   const [showUnavailable, setShowUnavailable] = useState(false);
   const [showRelease, setShowRelease] = useState(false);
   const [geoOn, setGeoOn] = useState(false);
@@ -35,6 +46,7 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
   const pub = useRef<{ publish: (lat: number, lng: number) => void; close: () => void } | null>(null);
   const done = outcome !== null;
   const step = FLOW.indexOf(status as (typeof FLOW)[number]);
+  const tripRoute = useRoute(job?.pickup, job?.dropoff); // road-following line for the trip map
 
   // Live waiting meter: 10-min free grace, then ₦50/min capped at ₦1,000 (mirrors the server).
   const waitStartedAt = job?.waitStartedAt;
@@ -54,6 +66,15 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
     api.jobCustomer(jobId).then(setCustomer).catch(() => {});
   }, [jobId]);
 
+  // inDrive-style presence: an ongoing Android notification while the delivery is live, so the rider
+  // can jump straight back into the trip after minimising the app. Updates in place on each status
+  // change; cleared once the delivery is done or the rider leaves this screen. (No-op on iOS.)
+  useEffect(() => {
+    if (done || !isRiderActive(status)) { void clearTripPresence(); return; }
+    void showTripPresence(jobId, PRESENCE_LABEL[status] ?? 'On a delivery');
+  }, [status, done, jobId]);
+  useEffect(() => () => { void clearTripPresence(); }, []);
+
   // Location streaming to the customer, once permission is granted and the job is active.
   useEffect(() => {
     if (!geoOn || done) return;
@@ -72,30 +93,70 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
     return () => { active = false; sub?.remove(); pub.current?.close(); pub.current = null; };
   }, [geoOn, done, jobId]);
 
+  // If the rider already granted location on a previous visit, turn sharing on automatically — the OS
+  // permission persists, so re-asking on every open (as this screen used to) is pure friction. Only
+  // when it isn't granted do we show the "Turn on location" card. Runs once per mount; never re-prompts.
+  useEffect(() => {
+    let live = true;
+    Location.getForegroundPermissionsAsync()
+      .then((p) => { if (live && p.granted) setGeoOn(true); })
+      .catch(() => { /* permission read failed — fall back to the manual card */ });
+    return () => { live = false; };
+  }, []);
+
   const enableLocation = async () => {
     const { status: st } = await Location.requestForegroundPermissionsAsync();
     if (st === 'granted') setGeoOn(true); else toast('Location permission is needed to share your position');
   };
 
   const posOr = async (fail: string): Promise<{ lat: number; lng: number } | null> => {
-    const cur = await Location.getForegroundPermissionsAsync();
-    if (cur.status !== 'granted') { const r = await Location.requestForegroundPermissionsAsync(); if (r.status !== 'granted') { toast(fail); return null; } }
-    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-    return { lat: loc.coords.latitude, lng: loc.coords.longitude };
+    try {
+      const cur = await Location.getForegroundPermissionsAsync();
+      if (cur.status !== 'granted') { const r = await Location.requestForegroundPermissionsAsync(); if (r.status !== 'granted') { toast(fail); return null; } }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      return { lat: loc.coords.latitude, lng: loc.coords.longitude };
+    } catch {
+      // GPS can throw on a weak/indoor fix — previously this bubbled up uncaught and the button just
+      // did nothing, which looks broken. Always give the rider feedback so they can retry.
+      toast('Could not get your location — check your GPS signal and try again');
+      return null;
+    }
+  };
+
+  // Run a status-changing rider action resiliently. On a slow/degraded backend the transition can
+  // COMMIT server-side while the HTTP response is lost (timeout) — leaving the button on screen and
+  // tempting the rider to tap again. So on error we re-read the job: if it has moved past where we
+  // started, the action actually succeeded and we sync the UI silently; only if it truly didn't move
+  // (e.g. a real geofence rejection) do we surface the error toast. This is why a "you're outside the
+  // location" message still reaches the rider, while a dropped success no longer freezes the screen.
+  const runStep = async (act: () => Promise<Job>) => {
+    if (stepping) return; // guard against double/triple taps while a request is in flight
+    setStepping(true);
+    const before = status;
+    try {
+      const j = await act();
+      setStatus(j.status); setJob(j);
+    } catch (e) {
+      const fresh = await api.getJob(jobId).catch(() => null);
+      if (fresh && fresh.status !== before) { setStatus(fresh.status); setJob(fresh); }
+      else toast((e as Error).message);
+    } finally {
+      setStepping(false);
+    }
   };
 
   const advance = async () => {
     const next = FLOW[step + 1] ?? FLOW[0];
     if (next === 'AT_PICKUP') {
       const p = await posOr('Location needed to confirm you are at the pickup'); if (!p) return;
-      try { const j = await api.arrivePickup(jobId, p.lat, p.lng); setStatus(j.status); } catch (e) { toast((e as Error).message); }
+      await runStep(() => api.arrivePickup(jobId, p.lat, p.lng));
       return;
     }
-    try { const j = await api.advance(jobId, next as 'EN_ROUTE_PICKUP' | 'IN_PROGRESS' | 'EN_ROUTE_DROP'); setStatus(j.status); } catch (e) { toast((e as Error).message); }
+    await runStep(() => api.advance(jobId, next as 'EN_ROUTE_PICKUP' | 'IN_PROGRESS' | 'EN_ROUTE_DROP'));
   };
   const arrive = async () => {
     const p = await posOr('Location needed to verify arrival'); if (!p) return;
-    try { const j = await api.arrive(jobId, p.lat, p.lng); setStatus(j.status); } catch (e) { toast((e as Error).message); }
+    await runStep(() => api.arrive(jobId, p.lat, p.lng));
   };
   /**
    * Submit the receiver's code.
@@ -200,6 +261,9 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
                   pickup={job.pickup ?? null}
                   dropoff={job.dropoff ?? null}
                   rider={riderPos}
+                  route={tripRoute?.points ?? null}
+                  distanceMeters={tripRoute?.distanceMeters}
+                  durationSeconds={tripRoute?.durationSeconds}
                   height={220}
                 />
               </View>
@@ -214,7 +278,7 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
         {done ? (
           <Mono style={{ color: t.success, fontWeight: '700' }}>PAID ✓ — released to your wallet</Mono>
         ) : status === 'EN_ROUTE_DROP' ? (
-          <Button label="I've arrived (verify GPS)" onPress={arrive} />
+          <Button label={stepping ? 'Verifying…' : "I've arrived (verify GPS)"} onPress={arrive} busy={stepping} />
         ) : status === 'WAITING' || status === 'AWAITING_RESOLUTION' ? (
           <>
             <Card style={{ marginBottom: 12, borderColor: t.warning }}>
@@ -270,7 +334,7 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
             )}
           </>
         ) : (
-          <Button label={nextStep === 'AT_PICKUP' ? "I've arrived at pickup (verify GPS)" : `Mark: ${LABEL[nextStep]}`} onPress={advance} />
+          <Button label={stepping ? 'Working…' : nextStep === 'AT_PICKUP' ? "I've arrived at pickup (verify GPS)" : `Mark: ${LABEL[nextStep]}`} onPress={advance} busy={stepping} />
         )}
 
         {!done && RELEASABLE.includes(status) && (
