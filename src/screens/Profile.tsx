@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Alert, Image, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, StyleSheet, Switch, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadAsync, getInfoAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import { api, type Account } from '../api';
 import { clearToken, getRole, getToken } from '../lib/session';
 import { unregisterForPush } from '../lib/push';
 import { setRememberedTab } from '../lib/tabMemory';
+import { isSoundEnabled, setSoundEnabled } from '../lib/settings';
 import type { AppNav } from '../nav';
 import { BankAccountForm } from '../components/BankAccountForm';
 import { Button, Card, H1, KeyboardScreen, Mono, PressableScale, Spacer, useToast } from '../ui';
@@ -21,6 +22,8 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
   const isRider = role === 'RIDER';
 
   const [phone, setPhone] = useState<string | null>(null);
+  const [soundOn, setSoundOn] = useState(isSoundEnabled());
+  const toggleSound = (on: boolean) => { setSoundOn(on); void setSoundEnabled(on); };
   useEffect(() => { getToken().then((tok) => setRole(getRole(tok))); }, []);
   useEffect(() => { api.myAvatar().then((a) => setPhotoUrl(a.photoUrl)).catch(() => {}); }, []);
   useEffect(() => { api.me().then((m) => setPhone(m.phone)).catch(() => {}); }, []);
@@ -94,6 +97,17 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
       <Card style={{ padding: 0, marginBottom: 16 }}>
         <Row label={isRider ? 'Rider dashboard' : 'Book a delivery'} onPress={onPrimary} last={!isRider} />
         {isRider && <Row label="Documents & verification" onPress={() => navigation.navigate('Documents')} last />}
+      </Card>
+
+      <Card style={{ marginBottom: 16 }}>
+        <Mono style={{ fontSize: t.size.caption, marginBottom: 10 }}>PREFERENCES</Mono>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={{ fontSize: t.size.body, fontWeight: '600', color: t.ink }}>Alert sounds</Text>
+            <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 2, lineHeight: 18 }}>Play a chime for delivery updates and waiting alerts.</Text>
+          </View>
+          <Switch value={soundOn} onValueChange={toggleSound} trackColor={{ true: t.primary, false: t.line }} />
+        </View>
       </Card>
 
       <Card>

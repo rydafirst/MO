@@ -4,12 +4,14 @@ import { api, type Job } from '../api';
 import type { AppNav } from '../nav';
 import { PressableScale } from '../ui';
 import { t } from '../theme';
+import { isRiderActive } from '../lib/jobStatus';
 
 type Role = 'CUSTOMER' | 'RIDER' | 'ADMIN';
 
-// Non-terminal states worth surfacing as "you have something live right now".
-const CUSTOMER_ACTIVE = ['CREATED', 'FUNDED', 'SEARCHING', 'ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS', 'EN_ROUTE_DROP', 'ARRIVED', 'AWAITING_CODE'];
-const RIDER_ACTIVE = ['ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS', 'EN_ROUTE_DROP', 'ARRIVED', 'AWAITING_CODE'];
+// Customer-side non-terminal states worth surfacing as "you have something live right now".
+const CUSTOMER_ACTIVE = ['CREATED', 'FUNDED', 'SEARCHING', 'ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS', 'EN_ROUTE_DROP', 'ARRIVED', 'AWAITING_CODE', 'WAITING', 'AWAITING_RESOLUTION'];
+// Rider side reuses the single shared definition so WAITING / AWAITING_RESOLUTION never drop off the
+// resume banner (they previously did, stranding a rider mid-wait after they navigated away).
 
 function label(status: string, isRider: boolean): string {
   if (isRider) return 'Active delivery — tap to continue';
@@ -46,11 +48,11 @@ export function ActiveOrderBanner({ role, navigation }: { role: Role; navigation
 
   useEffect(() => {
     let stop = false;
-    const active = isRider ? RIDER_ACTIVE : CUSTOMER_ACTIVE;
+    const isActive = (status: string) => (isRider ? isRiderActive(status) : CUSTOMER_ACTIVE.includes(status));
     const tick = async () => {
       try {
         const jobs = isRider ? await api.assignedJobs() : await api.myJobs();
-        const found = jobs.find((j) => active.includes(j.status)) ?? null;
+        const found = jobs.find((j) => isActive(j.status)) ?? null;
         if (!stop) setJob(found);
       } catch { /* keep last */ }
     };

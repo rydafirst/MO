@@ -31,6 +31,14 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
 
   useEffect(() => { loadOnce(); }, [loadOnce]);
 
+  // Re-check the active delivery every time the dashboard regains focus — e.g. after the rider presses
+  // BACK from the trip screen. Without this the dashboard kept the stale value from first mount, so the
+  // "Resume delivery" banner never appeared and the rider couldn't get back to the trip they were on.
+  useEffect(() => {
+    const unsub = navigation.addListener('focus', () => { void loadOnce(); });
+    return unsub;
+  }, [navigation, loadOnce]);
+
   // Last known rider position, refreshed while online so the feed can rank jobs by nearness.
   const posRef = useRef<{ lat: number; lng: number } | undefined>(undefined);
   const loadFeed = useCallback(async () => {

@@ -9,6 +9,9 @@ import { createRiderPublisher } from '../lib/socket';
 import { isRiderActive } from '../lib/jobStatus';
 import { showTripPresence, clearTripPresence } from '../lib/tripPresence';
 import { useRoute } from '../lib/routing';
+import { metersBetween } from '../lib/geo';
+import { chime } from '../lib/settings';
+import { notifyStageNudge, clearStageNudge } from '../lib/stageNudge';
 import { Map } from '../components/Map';
 import { Button, Card, Mono, PressableScale, Screen, Spacer, useToast } from '../ui';
 import { t } from '../theme';
@@ -44,9 +47,36 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
   const [riderPos, setRiderPos] = useState<{ lat: number; lng: number } | null>(null);
   const [now, setNow] = useState(Date.now());
   const pub = useRef<{ publish: (lat: number, lng: number) => void; close: () => void } | null>(null);
-  const done = outcome !== null;
+  // "Done" also covers a job that is already finished when the screen (re)loads — a COMPLETED/RELEASED
+  // delivery must never show the "Mark: heading to pickup" button again, which is what produced the
+  // "RELEASED -> EN_ROUTE_PICKUP" 409s in the logs when a rider reopened a completed job.
+  const done = outcome !== null || status === 'COMPLETED' || status === 'RELEASED';
   const step = FLOW.indexOf(status as (typeof FLOW)[number]);
   const tripRoute = useRoute(job?.pickup, job?.dropoff); // road-following line for the trip map
+
+  // Stage-nudge: from the rider's live position, detect when they've reached (or left) a stage but
+  // haven't tapped to confirm it — so the trip never stalls with the customer left uninformed. This
+  // is derived, not stored, so it can't get out of sync with the real status/position.
+  const NUDGE_RADIUS_M = 130;
+  const stageNudge: string | null = (() => {
+    if (done || !riderPos || !job) return null;
+    const near = (pt?: { lat: number; lng: number }) => !!pt && metersBetween(riderPos, pt) <= NUDGE_RADIUS_M;
+    const away = (pt?: { lat: number; lng: number }) => !!pt && metersBetween(riderPos, pt) > NUDGE_RADIUS_M;
+    if (status === 'EN_ROUTE_PICKUP' && near(job.pickup)) return 'You’ve reached the pickup — tap "I’ve arrived at pickup" to continue.';
+    if (status === 'AT_PICKUP' && away(job.pickup)) return 'You’ve left the pickup — tap "Mark: Picked up" so the customer can track you.';
+    if (status === 'EN_ROUTE_DROP' && near(job.dropoff)) return 'You’ve reached the drop-off — tap "I’ve arrived" to continue.';
+    return null;
+  })();
+
+  // When a nudge is active, ping the rider (works even if the app is minimised) and keep reminding
+  // every minute until they confirm; clear it the moment the nudge condition goes away or they leave.
+  useEffect(() => {
+    if (!stageNudge) { void clearStageNudge(); return; }
+    void notifyStageNudge(jobId, stageNudge);
+    const id = setInterval(() => { void notifyStageNudge(jobId, stageNudge); }, 60_000);
+    return () => clearInterval(id);
+  }, [stageNudge, jobId]);
+  useEffect(() => () => { void clearStageNudge(); }, []);
 
   // Live waiting meter: 10-min free grace, then ₦50/min capped at ₦1,000 (mirrors the server).
   const waitStartedAt = job?.waitStartedAt;
@@ -54,6 +84,16 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
   const graceLeftS = Math.max(0, 600 - elapsedS);
   const accruedMinor = elapsedS > 600 ? Math.min(Math.ceil((elapsedS - 600) / 60) * 5_000, 100_000) : 0;
   const waitingPaid = !!job?.waitingTxId;
+  // Chime when the waiting fee is CONFIRMED paid (edge-detected: the first observation just records
+  // the value, so reopening an already-paid job doesn't chime — only a real false→true transition does).
+  const prevPaid = useRef<boolean | undefined>(undefined);
+  useEffect(() => {
+    if (!job) return;
+    const paid = !!job.waitingTxId;
+    if (prevPaid.current === undefined) { prevPaid.current = paid; return; }
+    if (!prevPaid.current && paid) chime('Waiting fee paid', 'The customer paid — you can hand over once they enter the code.');
+    prevPaid.current = paid;
+  }, [job]);
   useEffect(() => {
     if (status !== 'WAITING' && status !== 'AWAITING_RESOLUTION') return;
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -109,12 +149,13 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
     if (st === 'granted') setGeoOn(true); else toast('Location permission is needed to share your position');
   };
 
-  const posOr = async (fail: string): Promise<{ lat: number; lng: number } | null> => {
+  const posOr = async (fail: string): Promise<{ lat: number; lng: number; accuracy?: number } | null> => {
     try {
       const cur = await Location.getForegroundPermissionsAsync();
       if (cur.status !== 'granted') { const r = await Location.requestForegroundPermissionsAsync(); if (r.status !== 'granted') { toast(fail); return null; } }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      return { lat: loc.coords.latitude, lng: loc.coords.longitude };
+      // Pass the fix's own accuracy so the server can tolerate GPS drift at the geofence (bounded there).
+      return { lat: loc.coords.latitude, lng: loc.coords.longitude, accuracy: loc.coords.accuracy ?? undefined };
     } catch {
       // GPS can throw on a weak/indoor fix — previously this bubbled up uncaught and the button just
       // did nothing, which looks broken. Always give the rider feedback so they can retry.
@@ -149,14 +190,14 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
     const next = FLOW[step + 1] ?? FLOW[0];
     if (next === 'AT_PICKUP') {
       const p = await posOr('Location needed to confirm you are at the pickup'); if (!p) return;
-      await runStep(() => api.arrivePickup(jobId, p.lat, p.lng));
+      await runStep(() => api.arrivePickup(jobId, p.lat, p.lng, p.accuracy));
       return;
     }
     await runStep(() => api.advance(jobId, next as 'EN_ROUTE_PICKUP' | 'IN_PROGRESS' | 'EN_ROUTE_DROP'));
   };
   const arrive = async () => {
     const p = await posOr('Location needed to verify arrival'); if (!p) return;
-    await runStep(() => api.arrive(jobId, p.lat, p.lng));
+    await runStep(() => api.arrive(jobId, p.lat, p.lng, p.accuracy));
   };
   /**
    * Submit the receiver's code.
@@ -187,14 +228,23 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
     }
   };
   const beginWaiting = async () => {
-    try { const r = await api.startWaiting(jobId); setStatus(r.status); setJob((j) => (j ? { ...j, waitStartedAt: r.waitStartedAt } : j)); }
+    try { const r = await api.startWaiting(jobId); setStatus(r.status); setJob((j) => (j ? { ...j, waitStartedAt: r.waitStartedAt } : j)); chime('Waiting started', 'You’re now waiting for the recipient — you’ll be paid for the wait.'); }
     catch (e) { toast((e as Error).message); }
   };
   const requestWaitingFee = async () => {
     try { const r = await api.chargeWaiting(jobId); Linking.openURL(r.paymentLink); toast('Waiting fee sent to the customer to pay', 'success'); }
     catch (e) { toast((e as Error).message); }
   };
-  const refreshJob = async () => { try { setJob(await api.getJob(jobId)); } catch { /* noop */ } };
+  // System-confirmed payment: while waiting, poll the job so the "paid" flag (waitingTxId — set ONLY
+  // by the payment webhook/verify on the server, never by the rider) and any customer resolution
+  // choice appear automatically. This replaces the rider's manual "I've been paid" self-declaration.
+  useEffect(() => {
+    if (done || (status !== 'WAITING' && status !== 'AWAITING_RESOLUTION')) return;
+    const id = setInterval(() => {
+      api.getJob(jobId).then((j) => { setJob(j); setStatus(j.status); }).catch(() => {});
+    }, 5000);
+    return () => clearInterval(id);
+  }, [status, done, jobId]);
   const release = async () => {
     try { await api.releaseJob(jobId); toast('Job released — back to the pool', 'success'); navigation.goBack(); }
     catch (e) { toast((e as Error).message); }
@@ -275,6 +325,13 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
           </Card>
         )}
 
+        {stageNudge && (
+          <Card style={{ marginBottom: 12, borderColor: t.warning, borderWidth: 1.5 }}>
+            <Mono style={{ color: t.warning, marginBottom: 4 }}>● ACTION NEEDED</Mono>
+            <Text style={{ fontSize: t.size.body, color: t.ink, lineHeight: 20 }}>{stageNudge}</Text>
+          </Card>
+        )}
+
         {done ? (
           <Mono style={{ color: t.success, fontWeight: '700' }}>PAID ✓ — released to your wallet</Mono>
         ) : status === 'EN_ROUTE_DROP' ? (
@@ -296,7 +353,8 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
               {graceLeftS === 0 && !waitingPaid && (
                 <View style={{ marginTop: 10, gap: 8 }}>
                   <Button label="Request waiting fee from customer" onPress={requestWaitingFee} />
-                  <Button label="I've been paid — refresh" variant="ghost" onPress={refreshJob} />
+                  {/* No self-declaration: the app watches for the confirmed payment and flips to "paid" itself. */}
+                  <Mono style={{ color: t.ink2, textAlign: 'center' }}>● WATCHING FOR THE CUSTOMER&apos;S PAYMENT…</Mono>
                 </View>
               )}
             </Card>

@@ -8,9 +8,11 @@ import { ToastProvider } from './ui';
 import { t } from './theme';
 import { getToken, getRole } from './lib/session';
 import { registerForPush } from './lib/push';
+import { loadSoundSetting } from './lib/settings';
 import { api } from './api';
 import { isRiderActive } from './lib/jobStatus';
 import { TRIP_PRESENCE_KIND } from './lib/tripPresence';
+import { STAGE_NUDGE_KIND } from './lib/stageNudge';
 import { LandingScreen } from './screens/Landing';
 import { LoginScreen } from './screens/Login';
 import { MainScreen } from './screens/Main';
@@ -43,6 +45,7 @@ export default function App() {
   const [initial, setInitial] = useState<'Landing' | 'Main' | null>(null);
 
   useEffect(() => {
+    void loadSoundSetting(); // load the alert-sound preference into cache before any chime fires
     getToken().then((tok) => {
       setInitial(tok ? 'Main' : 'Landing');
       if (tok) void registerForPush(); // already signed in — refresh this device's push token
@@ -59,7 +62,7 @@ export default function App() {
       // Our own on-trip presence notification: open that exact delivery, regardless of role. Checked
       // before the role branch so a rider's presence tap opens the trip (not the job feed like a
       // "new job nearby" broadcast, which carries a jobId but no kind).
-      if (data?.kind === TRIP_PRESENCE_KIND && typeof jobId === 'string') {
+      if ((data?.kind === TRIP_PRESENCE_KIND || data?.kind === STAGE_NUDGE_KIND) && typeof jobId === 'string') {
         navigationRef.navigate('RiderJob', { jobId });
         return;
       }

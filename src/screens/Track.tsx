@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Image, Linking, ScrollView, Text, View } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import { createURL } from 'expo-linking';
+import { chime } from '../lib/settings';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
 import { api, naira, type Account, type Job, type RiderSummary } from '../api';
@@ -86,7 +87,7 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
     if (lastChimed.current === null) { lastChimed.current = job.status; return; } // don't chime on first load
     if (lastChimed.current === job.status) return;
     lastChimed.current = job.status;
-    Notifications.scheduleNotificationAsync({ content: { title: 'Delivery update', body: msg, sound: true }, trigger: null }).catch(() => {});
+    chime('Delivery update', msg); // respects the "Alert sounds" toggle in Settings
   }, [job?.status]);
 
   const { point } = useJobLocation(jobId, uid);
@@ -122,6 +123,26 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
     try { const r = await api.initiateReturn(jobId); if (r.paymentLink) Linking.openURL(r.paymentLink); toast('Return started — pay to bring it back', 'success'); }
     catch (e) { toast((e as Error).message); }
   };
+
+  // Re-pay an order the customer didn't finish paying, WITHOUT recreating the trip. A live countdown
+  // of the payment window is shown; the server refuses if the order is already funded, so no double-pay.
+  const PAYMENT_WINDOW_MS = 20 * 60_000; // mirrors backend PAYMENT_WINDOW_MINUTES default
+  const [payNow, setPayNow] = useState(Date.now());
+  useEffect(() => {
+    if (job?.status !== 'CREATED') return;
+    const id = setInterval(() => setPayNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [job?.status]);
+  const paySecsLeft = job?.status === 'CREATED' && job.createdAt
+    ? Math.max(0, Math.round((Date.parse(job.createdAt) + PAYMENT_WINDOW_MS - payNow) / 1000))
+    : 0;
+  const makePayment = async () => {
+    try {
+      const r = await api.retryPayment(jobId, createURL('track'));
+      if (r.paymentLink) Linking.openURL(r.paymentLink);
+      else if (r.status !== 'CREATED') toast('This order is already paid.', 'success');
+    } catch (e) { toast((e as Error).message); }
+  };
   const notifyComing = async () => {
     try { await api.notifyComing(jobId); toast('Your rider has been notified', 'success'); }
     catch (e) { toast((e as Error).message); }
@@ -155,6 +176,17 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
         <View style={{ flexDirection: 'row', gap: 4, marginBottom: 16 }}>
           {FLOW.map((_, i) => <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: step >= 0 && i <= step ? t.ink : t.line2 }} />)}
         </View>
+
+        {job?.status === 'CREATED' && (
+          <Card style={{ marginBottom: 12, borderColor: t.primary, borderWidth: 1.5 }}>
+            <Mono style={{ color: t.primary, marginBottom: 6 }}>PAYMENT NOT COMPLETED</Mono>
+            <Text style={{ fontSize: t.size.body, color: t.ink2, lineHeight: 20, marginBottom: 10 }}>
+              This order isn’t paid yet — no rider is looking for it. You can pay now without booking again; your details are saved.
+              {paySecsLeft > 0 ? ` It’s held for ${Math.floor(paySecsLeft / 60)}m ${String(paySecsLeft % 60).padStart(2, '0')}s.` : ' It may expire at any moment — pay now to keep it.'}
+            </Text>
+            <Button label={`Make payment · ${naira(job.amountMinor)}`} onPress={makePayment} />
+          </Card>
+        )}
 
         {rider && (
           <Card style={{ marginBottom: 12 }}>
@@ -248,13 +280,13 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
           </Card>
         )}
 
-        {hasRider && (
+        {(hasRider || needsResolution) && (
           <Card style={{ alignItems: 'center', marginBottom: 12 }}>
             {deliveryCode ? (
               <>
                 <Mono style={{ fontSize: t.size.caption }}>DELIVERY CODE</Mono>
                 <Text style={{ fontFamily: t.mono, fontSize: t.size.display, fontWeight: '700', letterSpacing: 6, marginVertical: 6 }}>{deliveryCode}</Text>
-                <Mono style={{ color: t.ink2 }}>GIVE THIS TO YOUR RIDER ON ARRIVAL</Mono>
+                <Mono style={{ color: t.ink2 }}>GIVE THIS TO YOUR RIDER TO COMPLETE HAND-OVER</Mono>
               </>
             ) : <Button label="Reveal delivery code" variant="ghost" onPress={reveal} />}
           </Card>

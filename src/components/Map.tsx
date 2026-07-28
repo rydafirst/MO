@@ -86,10 +86,11 @@ if(route.length>1){
 if(fitPts.length>1){map.fitBounds(fitPts,{padding:[46,46],maxZoom:16});}
 else if(fitPts.length===1){map.setView(fitPts[0],15);}
 
-var rd=null,trail=[];
-window.setRider=function(lat,lng){var ll=[lat,lng];trail.push(ll);
- if(rd){rd.setLatLng(ll);}else{rd=L.marker(ll,{icon:veh('${glyph}'),zIndexOffset:1000}).addTo(map);}
- if(trail.length>1){if(window._tl){window._tl.setLatLngs(trail);}else{window._tl=L.polyline(trail,{color:'${t.primary}',weight:3.5,opacity:.85}).addTo(map);}}};
+var rd=null;
+// Just move the vehicle marker — no breadcrumb trail. Connecting every raw GPS fix drew the jagged
+// zig-zag from noisy pings; inDrive-style is a clean route + a single moving vehicle marker.
+window.setRider=function(lat,lng){var ll=[lat,lng];
+ if(rd){rd.setLatLng(ll);}else{rd=L.marker(ll,{icon:veh('${glyph}'),zIndexOffset:1000}).addTo(map);}};
 ${rider ? `window.setRider(${rider.lat},${rider.lng});` : ''}
 ${leafletControls(controls)}
 true;

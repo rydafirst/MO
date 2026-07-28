@@ -97,6 +97,10 @@ export const api = {
   notifyComing: (id: string) => call<{ ok: boolean }>(`/jobs/${id}/coming`, { method: 'POST' }),
   confirmPayment: (id: string, transactionId: string) =>
     call<{ funded: boolean; status: string }>(`/jobs/${id}/confirm-payment`, { method: 'POST', body: JSON.stringify({ transactionId }) }),
+  // Re-pay an unpaid order without recreating it. Server refuses (returns the current status) if the
+  // order is already funded, so the customer can never be charged twice.
+  retryPayment: (id: string, returnUrl?: string) =>
+    call<{ status: string; paymentLink?: string; flwTxRef?: string }>(`/jobs/${id}/retry-payment`, { method: 'POST', body: JSON.stringify(returnUrl ? { returnUrl } : {}) }),
   issueCode: (id: string) => call<{ code: string }>(`/jobs/${id}/issue-code`, { method: 'POST' }),
 
   // ---- Rider ----
@@ -107,10 +111,10 @@ export const api = {
   releaseJob: (id: string) => call<{ status: string }>(`/jobs/${id}/release`, { method: 'POST' }),
   advance: (id: string, to: 'EN_ROUTE_PICKUP' | 'IN_PROGRESS' | 'EN_ROUTE_DROP') =>
     call<Job>(`/jobs/${id}/advance`, { method: 'POST', body: JSON.stringify({ to }) }),
-  arrivePickup: (id: string, lat: number, lng: number) =>
-    call<Job>(`/jobs/${id}/arrive-pickup`, { method: 'POST', body: JSON.stringify({ lat, lng }) }),
-  arrive: (id: string, lat: number, lng: number) =>
-    call<Job>(`/jobs/${id}/arrive`, { method: 'POST', body: JSON.stringify({ lat, lng }) }),
+  arrivePickup: (id: string, lat: number, lng: number, accuracyM?: number) =>
+    call<Job>(`/jobs/${id}/arrive-pickup`, { method: 'POST', body: JSON.stringify({ lat, lng, ...(accuracyM != null ? { accuracyM } : {}) }) }),
+  arrive: (id: string, lat: number, lng: number, accuracyM?: number) =>
+    call<Job>(`/jobs/${id}/arrive`, { method: 'POST', body: JSON.stringify({ lat, lng, ...(accuracyM != null ? { accuracyM } : {}) }) }),
   confirmCode: (id: string, code: string) =>
     call<{ status: string }>(`/jobs/${id}/confirm-code`, { method: 'POST', headers: { 'Idempotency-Key': uuid() }, body: JSON.stringify({ code }) }),
   failedAttempt: (id: string) =>

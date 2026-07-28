@@ -29,9 +29,15 @@ html,body,#m{height:100%;margin:0;background:${t.bg2}}
 </style>`;
 }
 
-/** The Carto light basemap layer — keyless, so no API key ever ships in the app. */
+/**
+ * The Carto "Voyager" basemap layer — keyless (no API key ever ships in the app) but far more
+ * detailed than the old "light" style: it labels roads and places, and renders landmarks, water and
+ * parks in colour, so the map reads like a real street map (closer to the inDrive look) instead of a
+ * near-blank canvas. Served from Carto's CDN, so it's production-appropriate. Swapping to a keyed
+ * provider (Google/Mapbox) for exact parity is a later, isolated change to this one function.
+ */
 export function leafletTileLayer(): string {
-  return `L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:20}).addTo(map);`;
+  return `L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:20}).addTo(map);`;
 }
 
 /**
