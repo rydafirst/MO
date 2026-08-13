@@ -60,6 +60,7 @@
           "photosPermission": "Rydafirst needs access to your photos so you can upload your verification documents."
         }
       ],
+      "expo-web-browser",
       [
         "expo-build-properties",
         {
