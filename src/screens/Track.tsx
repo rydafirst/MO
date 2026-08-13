@@ -4,7 +4,7 @@ import { createURL } from 'expo-linking';
 import { chime } from '../lib/settings';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
-import { api, naira, type Account, type Job, type RiderSummary } from '../api';
+import { api, naira, type Account, type Job, type JobTimings, type RiderSummary } from '../api';
 import { getToken, getUserId } from '../lib/session';
 import { useJobLocation } from '../lib/socket';
 import { Map } from '../components/Map';
@@ -94,6 +94,18 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
   const hasRider = !!job && HAS_RIDER.includes(job.status);
   const tripRoute = useRoute(job?.pickup, job?.dropoff); // road-following line for the tracking map
 
+  // Live drop-leg ETA + late signal for the customer. All server-derived (JobTimings.drop) so the
+  // countdown can't be gamed by either party; polled only while a rider is actively delivering.
+  const [drop, setDrop] = useState<JobTimings['drop'] | null>(null);
+  useEffect(() => {
+    if (!hasRider) { setDrop(null); return; }
+    let stop = false;
+    const tick = async () => { try { const timings = await api.jobTimings(jobId); if (!stop) setDrop(timings.drop ?? null); } catch { /* keep last */ } };
+    tick();
+    const id = setInterval(() => { if (!stop) tick(); }, 5000);
+    return () => { stop = true; clearInterval(id); };
+  }, [hasRider, jobId]);
+
   // Once a rider is assigned, load their public details (name + vehicle) to show the customer.
   const [rider, setRider] = useState<RiderSummary | null>(null);
   useEffect(() => {
@@ -115,6 +127,19 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
   const cancellable = !!job && CANCELLABLE.includes(job.status);
   const needsResolution = !!job && (job.status === 'WAITING' || job.status === 'AWAITING_RESOLUTION');
   const waitingDue = !!job?.waitingFeeMinor && !job?.waitingTxId;
+  // Call the rider. Proxy mode: ask the server to ring us and bridge — no number is ever exposed.
+  // Direct mode: fall back to a tel: link with the number the server provided.
+  const callRider = () => {
+    if (!rider) return;
+    if (rider.callMode === 'proxy') {
+      api.requestCall(jobId)
+        .then(() => toast('Calling you now — pick up to connect', 'success'))
+        .catch(() => toast('Could not place the call — please try again', 'error'));
+      return;
+    }
+    if (rider.phone) Linking.openURL(`tel:${rider.phone}`);
+  };
+
   const payWaiting = async () => {
     try { const r = await api.payWaiting(jobId); Linking.openURL(r.paymentLink); toast('Opening payment for the waiting fee', 'success'); }
     catch (e) { toast((e as Error).message); }
@@ -177,6 +202,19 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
           {FLOW.map((_, i) => <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: step >= 0 && i <= step ? t.ink : t.line2 }} />)}
         </View>
 
+        {drop && (
+          <Card style={{ marginBottom: 12, borderColor: drop.lateness !== 'none' ? t.warning : t.line }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Mono style={{ color: drop.lateness !== 'none' ? t.warning : t.ink2 }}>
+                {drop.lateness !== 'none' ? 'RUNNING LATE' : 'ESTIMATED ARRIVAL'}
+              </Mono>
+              <Text style={{ fontFamily: t.mono, fontSize: t.size.subtitle, fontWeight: '700', color: t.ink }}>
+                {drop.remainingSec > 0 ? `~${Math.ceil(drop.remainingSec / 60)} MIN` : 'ANY MOMENT'}
+              </Text>
+            </View>
+          </Card>
+        )}
+
         {job?.status === 'CREATED' && (
           <Card style={{ marginBottom: 12, borderColor: t.primary, borderWidth: 1.5 }}>
             <Mono style={{ color: t.primary, marginBottom: 6 }}>PAYMENT NOT COMPLETED</Mono>
@@ -210,11 +248,12 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
                   {rider.vehiclePlate ? ` · ${rider.vehiclePlate}` : ''}
                 </Text>
               </View>
-              {/* Only present while the delivery is live — the server withholds the number once the
-                  job ends, so this disappears on its own rather than needing a client-side rule. */}
-              {rider.phone ? (
+              {/* Only present while the delivery is live — the server withholds contact once the job
+                  ends, so this disappears on its own. In proxy mode we request a call (no number is
+                  ever sent to the app); otherwise we fall back to a direct tel: link. */}
+              {rider.callMode === 'proxy' || rider.phone ? (
                 <PressableScale
-                  onPress={() => Linking.openURL(`tel:${rider.phone}`)}
+                  onPress={callRider}
                   style={{ borderWidth: 1, borderColor: t.line, borderRadius: 6, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: t.bg }}
                 >
                   <Mono style={{ color: t.ink }}>CALL</Mono>

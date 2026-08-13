@@ -7,6 +7,14 @@ import { api, type ChatMessage } from '../api';
 import { getToken, getUserId } from '../lib/session';
 import { Button, Screen, useToast } from '../ui';
 import { t } from '../theme';
+import { useAndroidKeyboardInset } from '../lib/keyboard';
+
+// Short local time (e.g. "3:07 PM") for a message bubble. Falls back to empty on a bad timestamp
+// so a malformed value can never throw inside render.
+function formatTime(ms: number): string {
+  try { return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
+  catch { return ''; }
+}
 
 // Persist one-time acceptance of the chat conduct terms. SecureStore has no web build,
 // so the web (debug) fallback uses localStorage — mirrors lib/session.
@@ -35,6 +43,7 @@ export function ChatScreen({ route, navigation }: NativeStackScreenProps<RootSta
   const [sending, setSending] = useState(false);
   const [accepted, setAccepted] = useState<boolean | null>(null); // null = still loading
   const listRef = useRef<FlatList<ChatMessage>>(null);
+  const kbInset = useAndroidKeyboardInset(); // lifts the composer above the keyboard on Android
 
   const load = async () => {
     try { setMessages(await api.messages(jobId)); } catch { /* keep last */ }
@@ -122,31 +131,49 @@ export function ChatScreen({ route, navigation }: NativeStackScreenProps<RootSta
         style={{ flex: 1 }}
         data={messages}
         keyExtractor={(m) => m.id}
-        contentContainerStyle={{ padding: 16, gap: 8 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
         keyboardShouldPersistTaps="handled"
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
-        ListEmptyComponent={<Text style={{ color: t.ink2, textAlign: 'center', marginTop: 40 }}>No messages yet. Say hello 👋</Text>}
-        renderItem={({ item }) => {
+        ListEmptyComponent={(
+          <View style={s.empty}>
+            <View style={s.emptyGlyph}><Text style={s.emptyGlyphTxt}>💬</Text></View>
+            <Text style={s.emptyTitle}>No messages yet</Text>
+            <Text style={s.emptyBody}>Say hello and coordinate the delivery here.</Text>
+          </View>
+        )}
+        renderItem={({ item, index }) => {
           const mine = item.senderId === me;
+          // Group consecutive messages from the same sender: tighter gap, and only stamp the time on
+          // the last of a run so the thread reads cleanly rather than as a wall of timestamps.
+          const prev = messages[index - 1];
+          const next = messages[index + 1];
+          const grouped = prev?.senderId === item.senderId;
+          const endsRun = next?.senderId !== item.senderId;
           return (
-            <Pressable
-              onLongPress={() => { if (!mine) report(item); }}
-              delayLongPress={350}
-              style={[s.bubble, mine ? s.mine : s.theirs]}
-            >
-              <Text style={{ color: mine ? t.bg : t.ink, fontSize: t.size.body, lineHeight: 20 }}>{item.body}</Text>
-              {!mine ? <Text style={s.hint}>Hold to report</Text> : null}
-            </Pressable>
+            <View style={{ marginTop: grouped ? 2 : 12 }}>
+              <Pressable
+                onLongPress={() => { if (!mine) report(item); }}
+                delayLongPress={350}
+                style={[s.bubble, mine ? s.mine : s.theirs]}
+              >
+                <Text style={{ color: mine ? t.onDark : t.ink, fontSize: t.size.body, lineHeight: 22 }}>{item.body}</Text>
+              </Pressable>
+              {endsRun ? (
+                <Text style={[s.meta, mine ? { alignSelf: 'flex-end' } : { alignSelf: 'flex-start' }]}>
+                  {formatTime(item.createdAt)}{!mine ? '  ·  hold to report' : ''}
+                </Text>
+              ) : null}
+            </View>
           );
         }}
       />
-      <View style={s.composer}>
+      <View style={[s.composer, { marginBottom: kbInset }]}>
         <TextInput
           style={s.input}
           value={draft}
           onChangeText={setDraft}
           placeholder="Type a message…"
-          placeholderTextColor={t.ink2}
+          placeholderTextColor={t.mid}
           multiline
           onSubmitEditing={send}
         />
@@ -157,10 +184,15 @@ export function ChatScreen({ route, navigation }: NativeStackScreenProps<RootSta
 }
 
 const s = StyleSheet.create({
-  bubble: { maxWidth: '80%', borderRadius: 14, paddingVertical: 9, paddingHorizontal: 13 },
-  mine: { alignSelf: 'flex-end', backgroundColor: t.ink },
-  theirs: { alignSelf: 'flex-start', backgroundColor: t.bg2, borderWidth: 1, borderColor: t.line },
-  hint: { color: t.ink2, fontSize: t.size.caption, marginTop: 3, opacity: 0.7 },
+  bubble: { maxWidth: '82%', borderRadius: t.radius.lg + 8, paddingVertical: 10, paddingHorizontal: 14 },
+  mine: { alignSelf: 'flex-end', backgroundColor: t.ink, borderBottomRightRadius: t.radius.sm },
+  theirs: { alignSelf: 'flex-start', backgroundColor: t.bg, borderWidth: 1, borderColor: t.line, borderBottomLeftRadius: t.radius.sm },
+  meta: { color: t.mid, fontFamily: t.mono, fontSize: t.size.caption, marginTop: 4, marginHorizontal: 4 },
+  empty: { alignItems: 'center', marginTop: 64, paddingHorizontal: 32, gap: 8 },
+  emptyGlyph: { width: 64, height: 64, borderRadius: t.radius.pill, backgroundColor: t.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  emptyGlyphTxt: { fontSize: 28 },
+  emptyTitle: { color: t.ink, fontSize: t.size.subtitle, fontWeight: '700', marginTop: 4 },
+  emptyBody: { color: t.ink2, fontSize: t.size.small, textAlign: 'center', lineHeight: 20 },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: t.line, backgroundColor: t.bg },
-  input: { flex: 1, borderWidth: 1, borderColor: t.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, maxHeight: 120, fontSize: t.size.body, color: t.ink, backgroundColor: t.bg2 },
+  input: { flex: 1, borderWidth: 1, borderColor: t.line, borderRadius: t.radius.lg + 4, paddingHorizontal: 14, paddingVertical: 11, maxHeight: 120, fontSize: t.size.body, color: t.ink, backgroundColor: t.bg2 },
 });

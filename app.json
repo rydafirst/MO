@@ -26,6 +26,7 @@
     },
     "android": {
       "package": "ng.rydafirst.app",
+      "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -33,7 +34,8 @@
       },
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "USE_FULL_SCREEN_INTENT"
       ]
     },
     "web": {
@@ -56,6 +58,15 @@
         "expo-image-picker",
         {
           "photosPermission": "Rydafirst needs access to your photos so you can upload your verification documents."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34
+          }
         }
       ]
     ],

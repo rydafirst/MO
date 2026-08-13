@@ -8,6 +8,7 @@ import { ToastProvider } from './ui';
 import { t } from './theme';
 import { getToken, getRole } from './lib/session';
 import { registerForPush } from './lib/push';
+import { startPersistentAlert, stopPersistentAlert } from './lib/urgentAlert';
 import { loadSoundSetting } from './lib/settings';
 import { api } from './api';
 import { isRiderActive } from './lib/jobStatus';
@@ -66,11 +67,25 @@ export default function App() {
         navigationRef.navigate('RiderJob', { jobId });
         return;
       }
+      stopPersistentAlert(); // tapping the alert is an acknowledgement — silence the loop
       const role = getRole(await getToken());
       if (role === 'RIDER') {
         navigationRef.navigate('Main');
       } else if (typeof jobId === 'string') {
         navigationRef.navigate('Track', { jobId });
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  // A server-authored persistent alert (rider arrived — the customer must act): keep re-alerting so it
+  // isn't missed. Only while the app is NOT already in front (if it's active the user is looking, one
+  // alert is enough). It is bounded and stoppable inside urgentAlert; opening the app clears it below.
+  useEffect(() => {
+    const sub = Notifications.addNotificationReceivedListener((n) => {
+      const data = n.request.content.data as { alertLevel?: string } | undefined;
+      if (data?.alertLevel === 'persistent' && AppState.currentState !== 'active') {
+        startPersistentAlert(n.request.content.title ?? 'Rydafirst', n.request.content.body ?? 'Your rider is waiting.');
       }
     });
     return () => sub.remove();
@@ -91,7 +106,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (s) => { if (s === 'active') void resumeActiveTrip(); });
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') { stopPersistentAlert(); void resumeActiveTrip(); } // opening the app acknowledges the alert
+    });
     return () => sub.remove();
   }, [resumeActiveTrip]);
 

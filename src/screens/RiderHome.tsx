@@ -5,6 +5,7 @@ import { api, naira, type AvailableJob, type Job } from '../api';
 import type { AppNav } from '../nav';
 import { AppHeader } from '../components/AppHeader';
 import { JobsMap, type JobPin } from '../components/JobsMap';
+import { IncomingJobOverlay } from '../components/IncomingJobOverlay';
 import { Button, Card, Mono, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 import { isRiderActive } from '../lib/jobStatus';
@@ -19,6 +20,8 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
   const [earnings, setEarnings] = useState<number | null>(null);
   const [hasBank, setHasBank] = useState<boolean | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [incoming, setIncoming] = useState<AvailableJob | null>(null); // full-screen takeover for a new job
+  const seenIds = useRef<Set<string>>(new Set());                       // jobs already surfaced (shown/dismissed) — takeover once
 
   const loadOnce = useCallback(async () => {
     await Promise.all([
@@ -63,6 +66,19 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
 
   const noBank = hasBank === false;
 
+  // Surface the newest job the rider hasn't seen as a full-screen takeover — but only one at a time,
+  // and only when they can actually take it (online, no active delivery, bank on file). Each job is
+  // marked seen so it can never take over twice; if it's declined it stays in the list below.
+  useEffect(() => {
+    if (!online || activeJob || noBank || incoming) return;
+    const fresh = jobs.find((j) => !seenIds.current.has(j.id));
+    if (fresh) { seenIds.current.add(fresh.id); setIncoming(fresh); }
+  }, [jobs, online, activeJob, noBank, incoming]);
+
+  // Tear the takeover down the moment the rider is no longer eligible (went offline, or now has an
+  // active delivery) so a stale card can't linger.
+  useEffect(() => { if (!online || activeJob) setIncoming(null); }, [online, activeJob]);
+
   const toggle = async () => {
     if (noBank) { onOpenPayout?.(); return; }
     const next = !online;
@@ -82,6 +98,7 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
   };
 
   return (
+    <>
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.ink} />}>
       <AppHeader navigation={navigation} />
       <Spacer h={16} />
@@ -147,6 +164,12 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
       <Spacer h={16} />
       <Button label="Documents & verification" variant="ghost" onPress={() => navigation.navigate('Documents')} />
     </ScrollView>
+    <IncomingJobOverlay
+      job={incoming}
+      onAccept={(id) => { setIncoming(null); accept(id); }}
+      onDismiss={() => setIncoming(null)}
+    />
+    </>
   );
 }
 

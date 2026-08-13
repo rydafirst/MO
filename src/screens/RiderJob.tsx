@@ -100,7 +100,7 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
     return () => clearInterval(id);
   }, [status]);
 
-  const [customer, setCustomer] = useState<{ name?: string; photoUrl?: string; phone?: string; phoneMasked?: boolean } | null>(null);
+  const [customer, setCustomer] = useState<{ name?: string; photoUrl?: string; phone?: string; phoneMasked?: boolean; callMode?: 'proxy' | 'direct' } | null>(null);
   useEffect(() => {
     api.getJob(jobId).then((j) => { setJob(j); setStatus(j.status); if (j.fallbackPolicy) setPolicy(j.fallbackPolicy); }).catch(() => {});
     api.jobCustomer(jobId).then(setCustomer).catch(() => {});
@@ -249,6 +249,17 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
     try { await api.releaseJob(jobId); toast('Job released — back to the pool', 'success'); navigation.goBack(); }
     catch (e) { toast((e as Error).message); }
   };
+  // Call the sender. Proxy mode rings us and bridges — no number exposed; direct mode uses tel:.
+  const callCustomer = () => {
+    if (customer?.callMode === 'proxy') {
+      api.requestCall(jobId)
+        .then(() => toast('Calling you now — pick up to connect', 'success'))
+        .catch(() => toast('Could not place the call — please try again'));
+      return;
+    }
+    if (customer?.phone) Linking.openURL(`tel:${customer.phone}`);
+  };
+
   const navTo = (pt?: { lat: number; lng: number }) => { if (pt) Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${pt.lat},${pt.lng}`); };
 
   const nextStep = FLOW[Math.min(step + 1, FLOW.length - 1)];
@@ -284,9 +295,10 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
                 )}
                 <View style={{ flex: 1 }}><Mono>CUSTOMER</Mono><Text style={{ fontSize: t.size.body, fontWeight: '600' }}>{customer?.name || job.customerName || 'Customer'}</Text></View>
                 {/* Reach the SENDER. The recipient's number below is a different person — riders
-                    previously had no way to call the person who booked the delivery. */}
-                {customer?.phone ? (
-                  <PressableScale onPress={() => Linking.openURL(`tel:${customer.phone}`)} style={s.chip}><Mono style={{ color: t.ink }}>CALL</Mono></PressableScale>
+                    previously had no way to call the person who booked the delivery. Proxy mode rings
+                    us and bridges (no number shown); direct mode falls back to a tel: link. */}
+                {customer?.callMode === 'proxy' || customer?.phone ? (
+                  <PressableScale onPress={callCustomer} style={s.chip}><Mono style={{ color: t.ink }}>CALL</Mono></PressableScale>
                 ) : null}
                 <PressableScale onPress={() => navigation.navigate('Chat', { jobId })} style={s.chip}><Mono style={{ color: t.ink }}>MESSAGE</Mono></PressableScale>
               </View>
@@ -295,8 +307,18 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
             {job.dropoffAddress ? <Detail label="Drop-off" value={job.dropoffAddress} /> : null}
             {job.recipient ? (
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <View><Mono>RECIPIENT</Mono><Text style={{ fontSize: t.size.body, fontWeight: '600' }}>{job.recipient.name}</Text><Mono>{job.recipient.phone}</Mono></View>
-                <PressableScale onPress={() => Linking.openURL(`tel:${job.recipient?.phone}`)} style={s.chip}><Mono style={{ color: t.ink }}>CALL</Mono></PressableScale>
+                <View>
+                  <Mono>RECIPIENT</Mono>
+                  <Text style={{ fontSize: t.size.body, fontWeight: '600' }}>{job.recipient.name}</Text>
+                  {/* The recipient's number is withheld by the server until pickup (privacy), so it
+                      only appears here once the item is in hand. */}
+                  {job.recipient.phone
+                    ? <Mono>{job.recipient.phone}</Mono>
+                    : <Mono style={{ color: t.ink2 }}>Number shows after pickup</Mono>}
+                </View>
+                {job.recipient.phone ? (
+                  <PressableScale onPress={() => Linking.openURL(`tel:${job.recipient?.phone}`)} style={s.chip}><Mono style={{ color: t.ink }}>CALL</Mono></PressableScale>
+                ) : null}
               </View>
             ) : null}
             {job.item ? <Detail label="Sending" value={job.item} /> : null}

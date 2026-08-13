@@ -19,7 +19,6 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStack, 'L
   const [role, setRole] = useState<Role>('CUSTOMER');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -43,13 +42,13 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStack, 'L
     // On sign-up we must capture a name so the customer/rider has an identity in the app.
     if (isSignup && name.trim().length < 2) { setErr('Please enter your name'); return; }
     setBusy(true);
-    try { await api.requestOtp(phone, email, isSignup ? name.trim() : undefined); setPhase('code'); setCooldown(RESEND_COOLDOWN); }
+    try { await api.requestOtp(phone, undefined, isSignup ? name.trim() : undefined); setPhase('code'); setCooldown(RESEND_COOLDOWN); }
     catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
   const resend = async () => {
     if (cooldown > 0 || busy) return;
     setErr(null); setNote(null); setBusy(true);
-    try { await api.requestOtp(phone, email, isSignup ? name.trim() : undefined); setNote(`New code sent to ${email}`); setCooldown(RESEND_COOLDOWN); }
+    try { await api.requestOtp(phone, undefined, isSignup ? name.trim() : undefined); setNote(`New code sent to ${phone}`); setCooldown(RESEND_COOLDOWN); }
     catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
   const verify = async () => {
@@ -91,10 +90,8 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStack, 'L
               </>
             ) : null}
             <Mono style={{ fontSize: t.size.caption, marginBottom: 8 }}>PHONE NUMBER</Mono>
-            <Input value={phone} onChangeText={setPhone} placeholder="+234…" keyboardType="phone-pad" style={{ marginBottom: 16 }} />
-            <Mono style={{ fontSize: t.size.caption, marginBottom: 8 }}>EMAIL</Mono>
-            <Input value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" style={{ marginBottom: 6 }} />
-            <Mono style={{ fontSize: t.size.caption, color: t.mid, marginBottom: 16 }}>WE&apos;LL EMAIL YOUR CODE FOR NOW</Mono>
+            <Input value={phone} onChangeText={setPhone} placeholder="+234…" keyboardType="phone-pad" style={{ marginBottom: 6 }} />
+            <Mono style={{ fontSize: t.size.caption, color: t.mid, marginBottom: 16 }}>WE&apos;LL TEXT YOUR CODE BY SMS</Mono>
             <Button label={busy ? 'Sending…' : isSignup ? 'Create account' : 'Send code'} onPress={sendOtp} busy={busy} />
             {isSignup ? (
               <Text style={{ fontSize: t.size.caption, color: t.ink2, lineHeight: 19, marginTop: 14, textAlign: 'center' }}>
@@ -110,11 +107,11 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStack, 'L
             <Mono style={{ fontSize: t.size.caption, marginBottom: 8 }}>ENTER 6-DIGIT CODE</Mono>
             <Input value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} style={{ marginBottom: 10, textAlign: 'center', fontSize: t.size.heading, letterSpacing: 6, fontFamily: t.mono }} />
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Mono style={{ fontSize: t.size.caption, color: t.mid }}>SENT TO {email.toUpperCase()}</Mono>
+              <Mono style={{ fontSize: t.size.caption, color: t.mid }}>SENT TO {phone}</Mono>
               <Mono onPress={resend} style={{ fontSize: t.size.caption, color: cooldown > 0 || busy ? t.mid : t.ink }}>{cooldown > 0 ? `RESEND IN ${cooldown}S` : 'RESEND CODE'}</Mono>
             </View>
             <Button label={busy ? 'Working…' : `Verify as ${role === 'RIDER' ? 'rider' : 'customer'}`} onPress={verify} busy={busy} />
-            <Mono onPress={() => { setPhase('phone'); setCode(''); setErr(null); setNote(null); }} style={{ marginTop: 12, color: t.ink2 }}>← USE A DIFFERENT EMAIL</Mono>
+            <Mono onPress={() => { setPhase('phone'); setCode(''); setErr(null); setNote(null); }} style={{ marginTop: 12, color: t.ink2 }}>← USE A DIFFERENT NUMBER</Mono>
           </>
         )}
 
