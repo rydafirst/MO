@@ -3,7 +3,7 @@
     "name": "Rydafirst",
     "slug": "rydafirst",
     "scheme": "rydafirst",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
@@ -77,7 +77,7 @@
       }
     },
     "owner": "rydas-team",
-    "runtimeVersion": "0.0.1",
+    "runtimeVersion": "0.0.2",
     "updates": {
       "url": "https://u.expo.dev/3aab2310-4723-4aad-802c-a57f5fe3c55d"
     }
