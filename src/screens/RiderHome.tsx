@@ -9,6 +9,7 @@ import { IncomingJobOverlay } from '../components/IncomingJobOverlay';
 import { Button, Card, Mono, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 import { isRiderActive } from '../lib/jobStatus';
+import { maybePromptFullScreenIntent } from '../lib/fullScreenPermission';
 /** Metres -> "X.X km" for the rider's job cards. */
 const km = (m: number) => `${(Math.round(m / 100) / 10).toFixed(1)} KM`;
 
@@ -83,7 +84,12 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
     if (noBank) { onOpenPayout?.(); return; }
     const next = !online;
     setOnline(next);
-    try { await api.setAvailability(next); } catch (e) { setOnline(!next); toast((e as Error).message); }
+    try {
+      await api.setAvailability(next);
+      // Going online is exactly when full-screen job alerts start mattering — nudge the rider (once)
+      // to enable Android 14+'s full-screen-notification toggle. Best-effort; never blocks.
+      if (next) void maybePromptFullScreenIntent();
+    } catch (e) { setOnline(!next); toast((e as Error).message); }
   };
 
   const onRefresh = async () => { setRefreshing(true); await Promise.all([loadOnce(), online ? loadFeed() : Promise.resolve()]); setRefreshing(false); };
