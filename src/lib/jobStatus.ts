@@ -10,6 +10,8 @@
 export const RIDER_ACTIVE_STATUSES = [
   'ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS',
   'EN_ROUTE_DROP', 'ARRIVED', 'AWAITING_CODE', 'WAITING', 'AWAITING_RESOLUTION',
+  // #4 MULTI-STOP: primary dropoff confirmed, rider heading to the remaining extra stops.
+  'EN_ROUTE_STOP',
 ] as const;
 
 export function isRiderActive(status: string): boolean {

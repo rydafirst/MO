@@ -27,6 +27,8 @@ const PRESENCE_LABEL: Record<string, string> = {
   IN_PROGRESS: 'Package picked up', EN_ROUTE_DROP: 'Heading to drop-off',
   ARRIVED: 'At drop-off', AWAITING_CODE: 'At drop-off',
   WAITING: 'Waiting for receiver', AWAITING_RESOLUTION: 'Waiting for receiver',
+  // #4 MULTI-STOP: primary drop-off done, working the remaining extra stops.
+  EN_ROUTE_STOP: 'Delivering extra stops',
 };
 
 export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<RootStack, 'RiderJob'>) {
@@ -38,6 +40,9 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
   const [code, setCode] = useState('');
   const [outcome, setOutcome] = useState<'paid' | null>(null);
   const [confirming, setConfirming] = useState(false);
+  // #4 MULTI-STOP: code entry for the current EXTRA stop (separate from the primary drop-off code).
+  const [stopCode, setStopCode] = useState('');
+  const [confirmingStop, setConfirmingStop] = useState(false);
   const [stepping, setStepping] = useState(false);
   const [showUnavailable, setShowUnavailable] = useState(false);
   const [showRelease, setShowRelease] = useState(false);
@@ -52,6 +57,17 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
   // "RELEASED -> EN_ROUTE_PICKUP" 409s in the logs when a rider reopened a completed job.
   const done = outcome !== null || status === 'COMPLETED' || status === 'RELEASED';
   const step = FLOW.indexOf(status as (typeof FLOW)[number]);
+  // #4 MULTI-STOP: derived, ordered view of the extra drop-offs. The primary drop-off is stop 1; the
+  // extra stops are worked in strict order after it. `currentExtra` is the 0-based index of the next
+  // PENDING extra stop (its own index within extraStops == the index passed to api.confirmStop).
+  const extraStops = job?.extraStops ?? [];
+  const isMulti = extraStops.length > 0;
+  const totalStops = extraStops.length + 1; // primary + extras
+  const primaryDelivered = isMulti && (!!job?.primaryStopDeliveredAt || status === 'EN_ROUTE_STOP' || extraStops.some((x) => x.status === 'DELIVERED'));
+  const deliveredExtras = extraStops.filter((x) => x.status === 'DELIVERED').length;
+  const currentExtra = deliveredExtras < extraStops.length ? extraStops[deliveredExtras] : null;
+  // 1-based position of the stop currently being worked (for the "Stop X of N" label).
+  const currentStopNo = !primaryDelivered ? 1 : Math.min(deliveredExtras + 2, totalStops);
   const tripRoute = useRoute(job?.pickup, job?.dropoff); // road-following line for the trip map
 
   // Stage-nudge: from the rider's live position, detect when they've reached (or left) a stage but
@@ -84,16 +100,17 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
   const graceLeftS = Math.max(0, 600 - elapsedS);
   const accruedMinor = elapsedS > 600 ? Math.min(Math.ceil((elapsedS - 600) / 60) * 5_000, 100_000) : 0;
   const waitingPaid = !!job?.waitingTxId;
+  // #0 DIRECT DELIVERY: waiting-fee chime disabled — no waiting fee is charged in direct mode.
   // Chime when the waiting fee is CONFIRMED paid (edge-detected: the first observation just records
   // the value, so reopening an already-paid job doesn't chime — only a real false→true transition does).
-  const prevPaid = useRef<boolean | undefined>(undefined);
-  useEffect(() => {
-    if (!job) return;
-    const paid = !!job.waitingTxId;
-    if (prevPaid.current === undefined) { prevPaid.current = paid; return; }
-    if (!prevPaid.current && paid) chime('Waiting fee paid', 'The customer paid — you can hand over once they enter the code.');
-    prevPaid.current = paid;
-  }, [job]);
+  // const prevPaid = useRef<boolean | undefined>(undefined);
+  // useEffect(() => {
+  //   if (!job) return;
+  //   const paid = !!job.waitingTxId;
+  //   if (prevPaid.current === undefined) { prevPaid.current = paid; return; }
+  //   if (!prevPaid.current && paid) chime('Waiting fee paid', 'The customer paid — you can hand over once they enter the code.');
+  //   prevPaid.current = paid;
+  // }, [job]);
   useEffect(() => {
     if (status !== 'WAITING' && status !== 'AWAITING_RESOLUTION') return;
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -213,7 +230,15 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
     try {
       const r = await api.confirmCode(jobId, code);
       setStatus(r.status);
-      setOutcome('paid');
+      setCode('');
+      // #4 MULTI-STOP: on a multi-stop job the primary code returns EN_ROUTE_STOP (no payment yet) —
+      // re-read the job so the extra-stop checklist appears. A single-stop job completes here as before.
+      if (r.status === 'EN_ROUTE_STOP') {
+        const fresh = await api.getJob(jobId).catch(() => null);
+        if (fresh) setJob(fresh);
+      } else {
+        setOutcome('paid');
+      }
     } catch (e) {
       const landed = await api.getJob(jobId).catch(() => null);
       if (landed && (landed.status === 'COMPLETED' || landed.status === 'RELEASED')) {
@@ -222,19 +247,60 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
         setOutcome('paid');
         return;
       }
+      if (landed && landed.status === 'EN_ROUTE_STOP') {
+        setJob(landed);
+        setStatus(landed.status);
+        setCode('');
+        return;
+      }
       toast((e as Error).message);
     } finally {
       setConfirming(false);
     }
   };
-  const beginWaiting = async () => {
-    try { const r = await api.startWaiting(jobId); setStatus(r.status); setJob((j) => (j ? { ...j, waitStartedAt: r.waitStartedAt } : j)); chime('Waiting started', 'You’re now waiting for the recipient — you’ll be paid for the wait.'); }
-    catch (e) { toast((e as Error).message); }
+
+  // #4 MULTI-STOP: confirm the CURRENT extra stop's code with the rider's live GPS (same fix pattern the
+  // primary arrive/confirm uses). Intermediate stops return EN_ROUTE_STOP; the final stop returns
+  // RELEASED (escrow released, rider paid). Resilient to a lost success response like `confirm` above.
+  const confirmCurrentStop = async () => {
+    if (confirmingStop) return;
+    const idx = deliveredExtras; // 0-based index of the first PENDING extra stop
+    if (idx >= extraStops.length) return;
+    const p = await posOr('Location needed to confirm this stop'); if (!p) return;
+    setConfirmingStop(true);
+    const before = deliveredExtras;
+    try {
+      const r = await api.confirmStop(jobId, idx, stopCode, p.lat, p.lng, p.accuracy);
+      setStopCode('');
+      const fresh = await api.getJob(jobId).catch(() => null);
+      if (fresh) { setJob(fresh); setStatus(fresh.status); }
+      else setStatus(r.status);
+      if (r.status === 'RELEASED' || r.status === 'COMPLETED') setOutcome('paid');
+    } catch (e) {
+      const landed = await api.getJob(jobId).catch(() => null);
+      if (landed && (landed.status === 'RELEASED' || landed.status === 'COMPLETED')) {
+        setJob(landed); setStatus(landed.status); setOutcome('paid'); setStopCode('');
+        return;
+      }
+      // The stop may have been recorded even though the response was lost — if the delivered count moved
+      // past where we started, treat it as success and advance to the next stop.
+      const nowDelivered = landed?.extraStops?.filter((x) => x.status === 'DELIVERED').length ?? before;
+      if (landed && nowDelivered > before) { setJob(landed); setStatus(landed.status); setStopCode(''); return; }
+      toast((e as Error).message);
+    } finally {
+      setConfirmingStop(false);
+    }
   };
-  const requestWaitingFee = async () => {
-    try { const r = await api.chargeWaiting(jobId); Linking.openURL(r.paymentLink); toast('Waiting fee sent to the customer to pay', 'success'); }
-    catch (e) { toast((e as Error).message); }
-  };
+  // #0 DIRECT DELIVERY: the recipient-unavailable "start waiting" + waiting-fee actions are disabled.
+  // These backend endpoints now return HTTP 409 in direct mode, so the UI must not call them.
+  // const beginWaiting = async () => {
+  //   try { const r = await api.startWaiting(jobId); setStatus(r.status); setJob((j) => (j ? { ...j, waitStartedAt: r.waitStartedAt } : j)); chime('Waiting started', 'You’re now waiting for the recipient — you’ll be paid for the wait.'); }
+  //   catch (e) { toast((e as Error).message); }
+  // };
+  // const requestWaitingFee = async () => {
+  //   try { const r = await api.chargeWaiting(jobId); Linking.openURL(r.paymentLink); toast('Waiting fee sent to the customer to pay', 'success'); }
+  //   catch (e) { toast((e as Error).message); }
+  // };
   // System-confirmed payment: while waiting, poll the job so the "paid" flag (waitingTxId — set ONLY
   // by the payment webhook/verify on the server, never by the rider) and any customer resolution
   // choice appear automatically. This replaces the rider's manual "I've been paid" self-declaration.
@@ -347,6 +413,24 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
           </Card>
         )}
 
+        {/* #4 MULTI-STOP: ordered checklist of every drop-off with live progress. Stop 1 is the primary
+            drop-off (done once its code is confirmed); the rest are the extra stops in order. */}
+        {isMulti && !done && (
+          <Card style={{ marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <Mono>STOP CHECKLIST</Mono>
+              <Mono style={{ color: t.ink }}>STOP {currentStopNo} OF {totalStops}</Mono>
+            </View>
+            <StopRow no={1} label={job?.dropoffAddress || job?.dropoffArea || 'Primary drop-off'}
+              delivered={primaryDelivered} current={!primaryDelivered} />
+            {extraStops.map((s, i) => (
+              <StopRow key={i} no={i + 2} label={s.address || s.area || `Stop ${i + 2}`}
+                recipient={s.recipient?.name} delivered={s.status === 'DELIVERED'}
+                current={primaryDelivered && i === deliveredExtras} />
+            ))}
+          </Card>
+        )}
+
         {stageNudge && (
           <Card style={{ marginBottom: 12, borderColor: t.warning, borderWidth: 1.5 }}>
             <Mono style={{ color: t.warning, marginBottom: 4 }}>● ACTION NEEDED</Mono>
@@ -360,6 +444,9 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
           <Button label={stepping ? 'Verifying…' : "I've arrived (verify GPS)"} onPress={arrive} busy={stepping} />
         ) : status === 'WAITING' || status === 'AWAITING_RESOLUTION' ? (
           <>
+            {/* #0 DIRECT DELIVERY: waiting-fee meter + "Request waiting fee" UI disabled. In direct mode a
+                job never enters WAITING, and no waiting fee is charged; the code card below still lets a
+                legacy WAITING job be handed over.
             <Card style={{ marginBottom: 12, borderColor: t.warning }}>
               <Mono style={{ marginBottom: 6 }}>{graceLeftS > 0 ? 'FREE WAITING' : 'METERED WAITING'}</Mono>
               <Text style={{ fontSize: t.size.title, fontWeight: '800', fontFamily: t.mono }}>
@@ -375,11 +462,12 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
               {graceLeftS === 0 && !waitingPaid && (
                 <View style={{ marginTop: 10, gap: 8 }}>
                   <Button label="Request waiting fee from customer" onPress={requestWaitingFee} />
-                  {/* No self-declaration: the app watches for the confirmed payment and flips to "paid" itself. */}
+                  {/* No self-declaration: the app watches for the confirmed payment and flips to "paid" itself. * / }
                   <Mono style={{ color: t.ink2, textAlign: 'center' }}>● WATCHING FOR THE CUSTOMER&apos;S PAYMENT…</Mono>
                 </View>
               )}
             </Card>
+            */}
             <Card style={{ marginBottom: 12 }}>
               <Mono style={{ fontSize: t.size.caption }}>{policy === 'DELEGATE' ? 'ENTER THE CODE (RECEIVER OR THEIR PROXY)' : "ENTER THE RECEIVER'S DELIVERY CODE"}</Mono>
               <TextInput style={s.codeInput} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={4} />
@@ -396,23 +484,65 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
               <TextInput style={s.codeInput} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={4} />
               <Button label={confirming ? 'Confirming…' : 'Confirm & get paid'} onPress={confirm} busy={confirming} />
             </Card>
+            {/* #0 DIRECT DELIVERY: the "Start waiting / waiting fee / return" recipient-unavailable flow is
+                disabled. In a direct delivery the rider and customer simply call or message to sort out an
+                absent receiver — no waiting timer, no fee, no return deposit. */}
             {!showUnavailable ? (
               <PressableScale onPress={() => setShowUnavailable(true)}><Mono style={{ color: t.ink2, textAlign: 'center' }}>RECEIVER NOT AVAILABLE? →</Mono></PressableScale>
             ) : (
               <Card>
                 <Text style={{ fontSize: t.size.body, fontWeight: '700' }}>Receiver unavailable</Text>
                 <Text style={{ fontSize: t.size.small, color: t.ink2, marginVertical: 8, lineHeight: 18 }}>
-                  Start the wait — the first 10 minutes are free. After that you can ask the customer to
-                  cover the wait, or they can choose to have the package returned. You’re paid in full either way.
+                  Call or message the customer to sort out the hand-over. You can reach them directly below.
                 </Text>
+                {/* #0 DIRECT DELIVERY: waiting action removed.
                 <Button label="Start waiting (first 10 min free)" onPress={beginWaiting} />
                 <View style={{ height: 8 }} />
+                */}
                 <PressableScale onPress={() => navigation.navigate('Chat', { jobId })} style={s.chip}>
                   <Mono style={{ color: t.ink }}>MESSAGE THE CUSTOMER →</Mono>
                 </PressableScale>
               </Card>
             )}
           </>
+        ) : status === 'EN_ROUTE_STOP' ? (
+          // #4 MULTI-STOP: primary drop-off is done — work each extra stop in order. Show the current
+          // stop's details + navigation, then its code entry (verified against the rider's live GPS).
+          currentExtra ? (
+            <>
+              <Card style={{ marginBottom: 12 }}>
+                <Mono style={{ marginBottom: 8 }}>CURRENT STOP · {currentStopNo} OF {totalStops}</Mono>
+                {currentExtra.address ? <Detail label="Drop-off" value={currentExtra.address} /> : currentExtra.area ? <Detail label="Area" value={currentExtra.area} /> : null}
+                {currentExtra.recipient ? (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <View>
+                      <Mono>RECIPIENT</Mono>
+                      <Text style={{ fontSize: t.size.body, fontWeight: '600' }}>{currentExtra.recipient.name}</Text>
+                      {currentExtra.recipient.phone
+                        ? <Mono>{currentExtra.recipient.phone}</Mono>
+                        : <Mono style={{ color: t.ink2 }}>Number shows at this stop</Mono>}
+                    </View>
+                    {currentExtra.recipient.phone ? (
+                      <PressableScale onPress={() => Linking.openURL(`tel:${currentExtra.recipient?.phone}`)} style={s.chip}><Mono style={{ color: t.ink }}>CALL</Mono></PressableScale>
+                    ) : null}
+                  </View>
+                ) : null}
+                {currentExtra.item ? <Detail label="Sending" value={currentExtra.item} /> : null}
+                {currentExtra.instructions ? <Detail label="Notes" value={currentExtra.instructions} /> : null}
+                <PressableScale onPress={() => navTo(currentExtra.point)} style={[s.chip, { marginTop: 8 }]}><Mono style={{ color: t.ink }}>NAVIGATE TO THIS STOP</Mono></PressableScale>
+              </Card>
+              <Card style={{ marginBottom: 12 }}>
+                <Mono style={{ fontSize: t.size.caption }}>ENTER THIS STOP&apos;S DELIVERY CODE</Mono>
+                <TextInput style={s.codeInput} value={stopCode} onChangeText={setStopCode} keyboardType="number-pad" maxLength={4} />
+                <Button label={confirmingStop ? 'Confirming…' : deliveredExtras >= extraStops.length - 1 ? 'Confirm final stop & get paid' : 'Confirm stop & continue'} onPress={confirmCurrentStop} busy={confirmingStop} />
+              </Card>
+              <PressableScale onPress={() => navigation.navigate('Chat', { jobId })} style={[s.chip, { marginTop: 4 }]}>
+                <Mono style={{ color: t.ink }}>MESSAGE THE CUSTOMER →</Mono>
+              </PressableScale>
+            </>
+          ) : (
+            <Mono style={{ color: t.ink2 }}>Finishing up…</Mono>
+          )
         ) : (
           <Button label={stepping ? 'Working…' : nextStep === 'AT_PICKUP' ? "I've arrived at pickup (verify GPS)" : `Mark: ${LABEL[nextStep]}`} onPress={advance} busy={stepping} />
         )}
@@ -432,6 +562,11 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
             </PressableScale>
           )
         )}
+
+        {/* #6 per-trip support: a resumable support thread scoped to THIS delivery. */}
+        <PressableScale onPress={() => navigation.navigate('SupportChat', { category: 'DELIVERY_ISSUE', jobId })} style={{ marginTop: 20 }}>
+          <Mono style={{ color: t.ink2, textAlign: 'center' }}>CONTACT SUPPORT ABOUT THIS DELIVERY →</Mono>
+        </PressableScale>
         <Spacer h={40} />
       </ScrollView>
     </Screen>
@@ -440,6 +575,24 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
 
 function Detail({ label, value }: { label: string; value: string }) {
   return <View style={{ marginBottom: 8 }}><Mono>{label.toUpperCase()}</Mono><Text style={{ fontSize: t.size.body, marginTop: 2 }}>{value}</Text></View>;
+}
+
+// #4 MULTI-STOP: one row of the rider's ordered stop checklist. Delivered stops are ticked; the stop
+// currently being worked is highlighted.
+function StopRow({ no, label, recipient, delivered, current }: { no: number; label: string; recipient?: string; delivered?: boolean; current?: boolean }) {
+  const color = delivered ? t.success : current ? t.ink : t.mid;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 }}>
+      <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: color, backgroundColor: delivered ? t.success : t.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontSize: t.size.caption, fontFamily: t.mono, fontWeight: '700', color: delivered ? t.onDark : color }}>{delivered ? '✓' : no}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: t.size.body, fontWeight: current ? '700' : '400', color: current || delivered ? t.ink : t.ink2 }} numberOfLines={1}>{label}</Text>
+        {recipient ? <Mono style={{ marginTop: 1 }}>{recipient}</Mono> : null}
+      </View>
+      <Mono style={{ color }}>{delivered ? 'DELIVERED' : current ? 'CURRENT' : 'PENDING'}</Mono>
+    </View>
+  );
 }
 
 const s = StyleSheet.create({

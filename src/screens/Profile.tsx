@@ -95,8 +95,9 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
       <BankAccountCard isRider={isRider} />
 
       <Card style={{ padding: 0, marginBottom: 16 }}>
-        <Row label={isRider ? 'Rider dashboard' : 'Book a delivery'} onPress={onPrimary} last={!isRider} />
-        {isRider && <Row label="Documents & verification" onPress={() => navigation.navigate('Documents')} last />}
+        <Row label={isRider ? 'Rider dashboard' : 'Book a delivery'} onPress={onPrimary} />
+        {isRider && <Row label="Documents & verification" onPress={() => navigation.navigate('Documents')} />}
+        <Row label="Help & support" onPress={() => navigation.navigate('Support')} last />
       </Card>
 
       <Card style={{ marginBottom: 16 }}>

@@ -117,6 +117,13 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
 
   const step = job ? FLOW.indexOf(job.status) : -1;
   const l = job ? label(job.status) : { text: 'Loading…', color: t.ink2 };
+  // #4 MULTI-STOP: compact delivery progress for the customer. Stop 1 is the primary drop-off; the rest
+  // are the extra stops in order. The current stop is the first one not yet delivered.
+  const extraStops = job?.extraStops ?? [];
+  const isMulti = extraStops.length > 0;
+  const primaryDelivered = !!job?.primaryStopDeliveredAt || extraStops.some((x) => x.status === 'DELIVERED');
+  const deliveredExtras = extraStops.filter((x) => x.status === 'DELIVERED').length;
+  const allStopsDone = isMulti && primaryDelivered && deliveredExtras >= extraStops.length;
 
   const reveal = async () => { try { setDeliveryCode((await api.issueCode(jobId)).code); } catch (e) { toast((e as Error).message); } };
   const cancel = async () => {
@@ -125,8 +132,11 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
     catch (e) { toast((e as Error).message); } finally { setCancelling(false); }
   };
   const cancellable = !!job && CANCELLABLE.includes(job.status);
+  // #0 DIRECT DELIVERY: in direct mode a job never enters WAITING/AWAITING_RESOLUTION, so this is
+  // effectively always false — kept so the code-reveal condition below still reads cleanly.
   const needsResolution = !!job && (job.status === 'WAITING' || job.status === 'AWAITING_RESOLUTION');
-  const waitingDue = !!job?.waitingFeeMinor && !job?.waitingTxId;
+  // #0 DIRECT DELIVERY: waiting-fee due flag disabled (no waiting fee is charged).
+  // const waitingDue = !!job?.waitingFeeMinor && !job?.waitingTxId;
   // Call the rider. Proxy mode: ask the server to ring us and bridge — no number is ever exposed.
   // Direct mode: fall back to a tel: link with the number the server provided.
   const callRider = () => {
@@ -140,14 +150,16 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
     if (rider.phone) Linking.openURL(`tel:${rider.phone}`);
   };
 
-  const payWaiting = async () => {
-    try { const r = await api.payWaiting(jobId); Linking.openURL(r.paymentLink); toast('Opening payment for the waiting fee', 'success'); }
-    catch (e) { toast((e as Error).message); }
-  };
-  const returnToMe = async () => {
-    try { const r = await api.initiateReturn(jobId); if (r.paymentLink) Linking.openURL(r.paymentLink); toast('Return started — pay to bring it back', 'success'); }
-    catch (e) { toast((e as Error).message); }
-  };
+  // #0 DIRECT DELIVERY: the waiting-fee payment and "return the package" actions are disabled — these
+  // backend endpoints now return HTTP 409 in direct mode, so the UI must not call them.
+  // const payWaiting = async () => {
+  //   try { const r = await api.payWaiting(jobId); Linking.openURL(r.paymentLink); toast('Opening payment for the waiting fee', 'success'); }
+  //   catch (e) { toast((e as Error).message); }
+  // };
+  // const returnToMe = async () => {
+  //   try { const r = await api.initiateReturn(jobId); if (r.paymentLink) Linking.openURL(r.paymentLink); toast('Return started — pay to bring it back', 'success'); }
+  //   catch (e) { toast((e as Error).message); }
+  // };
 
   // Re-pay an order the customer didn't finish paying, WITHOUT recreating the trip. A live countdown
   // of the payment window is shown; the server refuses if the order is already funded, so no double-pay.
@@ -267,18 +279,38 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
           <Card style={{ marginBottom: 12 }}>
             <Row label="Status" value={l.text} />
             <Row label="Type" value={job.type} />
+            {/* #0 DIRECT DELIVERY: no return deposit is ever charged, so the deposit breakdown is hidden.
             {job.returnReserveMinor ? (
               <>
                 <Row label="Delivery fare" value={naira(job.amountMinor - job.returnReserveMinor)} />
                 <Row label="Return deposit (refundable)" value={naira(job.returnReserveMinor)} />
               </>
-            ) : null}
+            ) : null} */}
             <Row label="Amount held in escrow" value={naira(job.amountMinor)} strong />
+            {/* #0 DIRECT DELIVERY: return-deposit explainer removed.
             {job.returnReserveMinor ? (
               <Text style={{ fontSize: t.size.caption, color: t.ink2, marginTop: 4, lineHeight: 16 }}>
                 Your {naira(job.returnReserveMinor)} return deposit is refunded in full once the delivery is completed.
               </Text>
-            ) : null}
+            ) : null} */}
+          </Card>
+        )}
+
+        {/* #4 MULTI-STOP: compact progress list for a multi-drop booking — each stop shown as
+            delivered/pending with the current stop highlighted. Hidden for single-stop deliveries. */}
+        {isMulti && (
+          <Card style={{ marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <Mono>DELIVERY STOPS</Mono>
+              <Mono style={{ color: t.ink }}>{Number(primaryDelivered) + deliveredExtras} OF {extraStops.length + 1} DONE</Mono>
+            </View>
+            <TrackStopRow no={1} label={job?.dropoffAddress || job?.dropoffArea || 'Primary drop-off'}
+              delivered={primaryDelivered} current={!primaryDelivered} />
+            {extraStops.map((s, i) => (
+              <TrackStopRow key={i} no={i + 2} label={s.address || s.area || `Stop ${i + 2}`}
+                recipient={s.recipient?.name} delivered={s.status === 'DELIVERED'}
+                current={primaryDelivered && !allStopsDone && i === deliveredExtras} />
+            ))}
           </Card>
         )}
 
@@ -331,6 +363,9 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
           </Card>
         )}
 
+        {/* #0 DIRECT DELIVERY: the "recipient unavailable" waiting-fee / return card is disabled. In direct
+            mode there's no waiting fee or return deposit — the customer and rider call/message to sort out
+            an absent receiver (the "message your rider" link below still covers that).
         {needsResolution && (
           <Card style={{ marginBottom: 12, borderColor: t.warning }}>
             <Mono style={{ color: t.warning, marginBottom: 6 }}>RECIPIENT UNAVAILABLE</Mono>
@@ -348,6 +383,7 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
             </PressableScale>
           </Card>
         )}
+        */}
 
         {hasRider && !needsResolution && (
           <PressableScale onPress={() => navigation.navigate('Chat', { jobId })} style={{ marginBottom: 12, alignItems: 'center', paddingVertical: 6 }}>
@@ -388,12 +424,34 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
           )
         )}
 
+        {/* #6 per-trip support: a resumable support thread scoped to THIS delivery. */}
+        <PressableScale onPress={() => navigation.navigate('SupportChat', { category: 'DELIVERY_ISSUE', jobId })} style={{ marginBottom: 12 }}>
+          <Mono style={{ color: t.ink2, textAlign: 'center' }}>CONTACT SUPPORT ABOUT THIS DELIVERY →</Mono>
+        </PressableScale>
+
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <View style={{ flex: 1 }}><Button label="Refresh" variant="ghost" onPress={async () => { try { setJob(await api.getJob(jobId)); } catch (e) { toast((e as Error).message); } }} /></View>
           <View style={{ flex: 1 }}><Button label="New order" variant="ghost" onPress={() => navigation.navigate('Main')} /></View>
         </View>
       </ScrollView>
     </Screen>
+  );
+}
+
+// #4 MULTI-STOP: one row of the customer's compact stop-progress list.
+function TrackStopRow({ no, label, recipient, delivered, current }: { no: number; label: string; recipient?: string; delivered?: boolean; current?: boolean }) {
+  const color = delivered ? t.success : current ? t.ink : t.mid;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 }}>
+      <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: color, backgroundColor: delivered ? t.success : t.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontSize: t.size.caption, fontFamily: t.mono, fontWeight: '700', color: delivered ? t.onDark : color }}>{delivered ? '✓' : no}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: t.size.body, fontWeight: current ? '700' : '400', color: current || delivered ? t.ink : t.ink2 }} numberOfLines={1}>{label}</Text>
+        {recipient ? <Mono style={{ marginTop: 1 }}>{recipient}</Mono> : null}
+      </View>
+      <Mono style={{ color }}>{delivered ? 'DELIVERED' : current ? 'CURRENT' : 'PENDING'}</Mono>
+    </View>
   );
 }
 

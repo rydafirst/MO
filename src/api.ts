@@ -12,7 +12,17 @@ export type Fallback = 'WAIT' | 'DELEGATE' | 'RETURN';
 export interface GeoPoint { lat: number; lng: number }
 export interface Quote {
   quoteToken: string; amountMinor: number; currency: 'NGN';
-  breakdown: { baseMinor: number; distanceMinor: number; platformFeeMinor: number; totalMinor: number };
+  breakdown: { baseMinor: number; distanceMinor: number; timeMinor: number; platformFeeMinor: number; totalMinor: number };
+}
+// #4 MULTI-STOP: one pickup, several drop-offs in one booking. Extra stops are the ordered EXTRA
+// drop-off points AFTER the primary dropoff. Each carries its own recipient/item/notes and a single-use
+// code (the code is NEVER returned on the Job — only once on the created-job response, see CreatedJob).
+export interface ExtraStop {
+  point: GeoPoint;
+  address?: string; area?: string;
+  recipient?: { name: string; phone?: string }; // phone omitted by the server until it's the current stop
+  item?: string; instructions?: string;
+  status: 'PENDING' | 'DELIVERED'; deliveredAt?: number;
 }
 export interface Job {
   id: string; type: JobType; status: string; amountMinor: number; currency: 'NGN'; createdAt: string;
@@ -23,7 +33,13 @@ export interface Job {
   fallbackPolicy?: Fallback;
   waitStartedAt?: number; waitingFeeMinor?: number; waitingTxId?: string; returnOfJobId?: string;
   returnReserveMinor?: number;
+  // #4 MULTI-STOP: present only when the booking has extra drop-offs. `primaryStopDeliveredAt` is set
+  // once the primary dropoff is confirmed (status flips to EN_ROUTE_STOP with stops still pending).
+  extraStops?: ExtraStop[]; primaryStopDeliveredAt?: number;
 }
+// #4 MULTI-STOP: metadata sent per extra stop at booking time — SAME order & COUNT as the quote `stops`
+// (the geo points come from the signed quote, not this body).
+export interface ExtraStopDto { recipient?: { name: string; phone: string }; item?: string; instructions?: string; address?: string; area?: string }
 export interface ChatMessage { id: string; jobId: string; senderId: string; body: string; createdAt: number }
 export interface AvailableJob {
   id: string; type: JobType; amountMinor: number; currency: 'NGN'; createdAt: string;
@@ -60,6 +76,19 @@ export interface JobTimings {
 }
 export interface PendingRating { jobId: string; amountMinor: number; createdAt: string; dropoffArea?: string; riderName?: string }
 
+// ---- Support chat (#5 agent hand-off + #6 per-trip) ----
+// Mirrors backend/src/modules/support/domain/support.ts. A thread starts in BOT (a short scripted
+// funnel), then escalates to AWAITING_AGENT once the final free-text step is answered.
+export type SupportCategory = 'PAYMENT' | 'DELIVERY_ISSUE' | 'CONDUCT' | 'ACCOUNT' | 'APP_ISSUE' | 'OTHER';
+export type SupportStatus = 'BOT' | 'AWAITING_AGENT' | 'AGENT_JOINED' | 'RESOLVED';
+export interface SupportThread {
+  id: string; userId: string; jobId?: string; category: SupportCategory; status: SupportStatus;
+  agentId?: string; agentJoinDeadline?: number; createdAt: number; updatedAt: number;
+}
+export interface SupportMessage {
+  id: string; threadId: string; sender: 'USER' | 'BOT' | 'AGENT'; senderId?: string; body: string; createdAt: number;
+}
+
 const uuid = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
 async function call<T>(path: string, opts: RequestInit & { auth?: boolean } = {}): Promise<T> {
@@ -88,13 +117,19 @@ export const api = {
     call<{ accessToken: string; refreshToken: string }>(`/auth/otp/verify`, { auth: false, method: 'POST', body: JSON.stringify({ phone, code, role }) }),
 
   // ---- Customer: booking + orders ----
-  quote: (body: { type: JobType; pickup: GeoPoint; dropoff: GeoPoint }) =>
+  // #4 MULTI-STOP: `stops` = ordered EXTRA drop-off points AFTER the primary dropoff (max 8). The
+  // server prices the full route pickup→dropoff→stops… and returns the same shape (breakdown reflects
+  // every leg).
+  quote: (body: { type: JobType; pickup: GeoPoint; dropoff: GeoPoint; stops?: GeoPoint[] }) =>
     call<Quote>(`/jobs/quote`, { method: 'POST', body: JSON.stringify(body) }),
   createJob: (body: {
     quoteToken: string; fallbackPolicy?: Fallback; customerName?: string; recipient?: { name: string; phone: string };
     item?: string; weightKg?: number; instructions?: string; pickupAddress?: string; dropoffAddress?: string; pickupArea?: string; dropoffArea?: string;
     returnUrl?: string;
-  }) => call<Job & { paymentLink?: string }>(`/jobs`, { method: 'POST', headers: { 'Idempotency-Key': uuid() }, body: JSON.stringify(body) }),
+    // #4 MULTI-STOP: per-stop metadata, SAME order & COUNT as the quote `stops`. The response's
+    // `extraStopCodes` carries each stop's plaintext single-use code, shown ONCE to the customer.
+    extraStops?: ExtraStopDto[];
+  }) => call<Job & { paymentLink?: string; extraStopCodes?: string[] }>(`/jobs`, { method: 'POST', headers: { 'Idempotency-Key': uuid() }, body: JSON.stringify(body) }),
   myJobs: () => call<Job[]>(`/jobs/mine`),
   getJob: (id: string) => call<Job>(`/jobs/${id}`),
   cancelJob: (id: string) => call<{ status: string; refunded: boolean }>(`/jobs/${id}/cancel`, { method: 'POST' }),
@@ -121,6 +156,11 @@ export const api = {
     call<Job>(`/jobs/${id}/arrive`, { method: 'POST', body: JSON.stringify({ lat, lng, ...(accuracyM != null ? { accuracyM } : {}) }) }),
   confirmCode: (id: string, code: string) =>
     call<{ status: string }>(`/jobs/${id}/confirm-code`, { method: 'POST', headers: { 'Idempotency-Key': uuid() }, body: JSON.stringify({ code }) }),
+  // #4 MULTI-STOP: confirm one EXTRA stop (0-based index within extraStops). The rider works the stops
+  // in strict order after the primary dropoff. Intermediate stops return EN_ROUTE_STOP; the final stop
+  // returns RELEASED (escrow released, rider paid).
+  confirmStop: (id: string, index: number, code: string, lat: number, lng: number, accuracyM?: number) =>
+    call<{ status: string }>(`/jobs/${id}/stops/${index}/confirm-code`, { method: 'POST', headers: { 'Idempotency-Key': uuid() }, body: JSON.stringify({ code, lat, lng, ...(accuracyM != null ? { accuracyM } : {}) }) }),
   failedAttempt: (id: string) =>
     call<{ status: string; attemptFeeMinor: number; waitingFeeMinor: number }>(`/jobs/${id}/failed-attempt`, { method: 'POST', headers: { 'Idempotency-Key': uuid() } }),
   // ---- Recipient-unavailable resolution ----
@@ -185,6 +225,17 @@ export const api = {
     call<{ ok: boolean }>(`/me/notifications/tokens/${encodeURIComponent(token)}`, { method: 'DELETE' }),
   openDispute: (id: string, counterEvidence = false) =>
     call<{ id: string; status: string; tier: string; resolution?: string }>(`/jobs/${id}/disputes`, { method: 'POST', body: JSON.stringify({ counterEvidence }) }),
+
+  // ---- Support chat ----
+  startSupportThread: (category: SupportCategory, jobId?: string) =>
+    call<SupportThread>(`/support/threads`, { method: 'POST', body: JSON.stringify({ category, ...(jobId ? { jobId } : {}) }) }),
+  // answer = the tapped canned option OR free text; advances the bot (final step escalates to an agent).
+  answerSupport: (id: string, answer: string) =>
+    call<{ thread: SupportThread; messages: SupportMessage[] }>(`/support/threads/${id}/answer`, { method: 'POST', body: JSON.stringify({ answer }) }),
+  postSupportMessage: (id: string, body: string) =>
+    call<SupportMessage>(`/support/threads/${id}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
+  mySupportThreads: () => call<SupportThread[]>(`/support/threads`),
+  supportMessages: (id: string) => call<SupportMessage[]>(`/support/threads/${id}/messages`),
 };
 
 export const naira = (m: number) => `₦${(m / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;

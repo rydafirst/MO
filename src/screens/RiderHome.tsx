@@ -10,6 +10,7 @@ import { Button, Card, Mono, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 import { isRiderActive } from '../lib/jobStatus';
 import { maybePromptFullScreenIntent } from '../lib/fullScreenPermission';
+import { chime } from '../lib/settings';
 /** Metres -> "X.X km" for the rider's job cards. */
 const km = (m: number) => `${(Math.round(m / 100) / 10).toFixed(1)} KM`;
 
@@ -73,7 +74,13 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
   useEffect(() => {
     if (!online || activeJob || noBank || incoming) return;
     const fresh = jobs.find((j) => !seenIds.current.has(j.id));
-    if (fresh) { seenIds.current.add(fresh.id); setIncoming(fresh); }
+    if (fresh) {
+      seenIds.current.add(fresh.id);
+      setIncoming(fresh);
+      // Audible alert so a rider doesn't miss a new job while looking away. Reuses the shared chime,
+      // so it honours the "Alert sounds" toggle in Profile and needs no bundled audio asset.
+      chime('New delivery nearby', 'A new delivery is available — tap to accept.');
+    }
   }, [jobs, online, activeJob, noBank, incoming]);
 
   // Tear the takeover down the moment the rider is no longer eligible (went offline, or now has an

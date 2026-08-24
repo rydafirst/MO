@@ -3,20 +3,27 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Location from 'expo-location';
-import { api, naira, type Fallback, type GeoPoint, type Job, type JobType, type Quote } from '../api';
+import { api, naira, type ExtraStopDto, type Fallback, type GeoPoint, type Job, type JobType, type Quote } from '../api';
 import type { AppNav } from '../nav';
 import { AddressField, type Place } from '../components/AddressField';
 import { AppHeader } from '../components/AppHeader';
 import { MapPreview } from '../components/MapPreview';
-import { Button, Card, Divider, Field, Input, KeyboardScreen, Mono, Segmented, Spacer, useToast } from '../ui';
+import { Button, Card, Divider, Field, Input, KeyboardScreen, Mono, PressableScale, Segmented, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
+// #0 DIRECT DELIVERY: the forced Wait/Delegate/Return machinery is disabled for launch — deliveries
+// are now plain direct trips. Kept (commented) so the fallback flow can be switched back on later.
 // Plain-language explanation of each "receiver unavailable" choice — identical to web.
-const FALLBACK_OPTIONS: { value: Fallback; title: string; desc: string }[] = [
-  { value: 'WAIT', title: 'Wait for them', desc: 'The rider waits 10 minutes free. After that a small waiting fee applies (₦50/min, max ₦1,000). Best if the receiver is just running late.' },
-  { value: 'DELEGATE', title: 'Let someone else receive it', desc: 'If your receiver isn’t there, anyone present (a colleague, neighbour, security) can accept it with the code. The delivery still completes.' },
-  { value: 'RETURN', title: 'Return it to me', desc: 'If no one can receive it, the rider brings the parcel back to you. Adds a refundable return deposit (75% of the fare) — refunded in full if the delivery completes, or used to pay the rider for the return trip.' },
-];
+// const FALLBACK_OPTIONS: { value: Fallback; title: string; desc: string }[] = [
+//   { value: 'WAIT', title: 'Wait for them', desc: 'The rider waits 10 minutes free. After that a small waiting fee applies (₦50/min, max ₦1,000). Best if the receiver is just running late.' },
+//   { value: 'DELEGATE', title: 'Let someone else receive it', desc: 'If your receiver isn’t there, anyone present (a colleague, neighbour, security) can accept it with the code. The delivery still completes.' },
+//   { value: 'RETURN', title: 'Return it to me', desc: 'If no one can receive it, the rider brings the parcel back to you. Adds a refundable return deposit (75% of the fare) — refunded in full if the delivery completes, or used to pay the rider for the return trip.' },
+// ];
+
+// #4 MULTI-STOP: at most 8 EXTRA drop-offs after the primary one (mirrors the server cap).
+const MAX_EXTRA_STOPS = 8;
+// A single extra drop-off being drafted in the booking form.
+interface StopDraft { place: Place | null; recipientName: string; recipientPhone: string; item: string }
 
 export function HomeTab({ navigation }: { navigation: AppNav }) {
   const toast = useToast();
@@ -42,20 +49,38 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
   const [item, setItem] = useState('');
   const [weight, setWeight] = useState('');
   const [customerName, setCustomerName] = useState('');
-  const [fallback, setFallback] = useState<Fallback>('WAIT');
+  // #4 MULTI-STOP: ordered EXTRA drop-offs added AFTER the primary drop-off. Each carries its own
+  // address (a Place), optional recipient name/phone, and optional item. Up to 8 extra stops.
+  const [extraStops, setExtraStops] = useState<StopDraft[]>([]);
+  // After a successful booking with extra stops, the created-job response returns each stop's
+  // single-use code ONCE — shown here so the customer can share them before we move to tracking.
+  const [stopCodes, setStopCodes] = useState<{ jobId: string; codes: string[] } | null>(null);
+  const addStop = () => {
+    if (extraStops.length >= MAX_EXTRA_STOPS) return;
+    setExtraStops((s) => [...s, { place: null, recipientName: '', recipientPhone: '', item: '' }]);
+    setQuote(null);
+  };
+  const removeStop = (i: number) => { setExtraStops((s) => s.filter((_, idx) => idx !== i)); setQuote(null); };
+  const patchStop = (i: number, patch: Partial<StopDraft>) => setExtraStops((s) => s.map((st, idx) => (idx === i ? { ...st, ...patch } : st)));
+  // #0 DIRECT DELIVERY: fallback choice + first-run explainer modal are disabled for launch.
+  // const [fallback, setFallback] = useState<Fallback>('WAIT');
   const [quote, setQuote] = useState<Quote | null>(null);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<Job | null>(null);
-  const [showFallback, setShowFallback] = useState(false);
-  const [fallbackAck, setFallbackAck] = useState(false); // only prompt once per session
+  // const [showFallback, setShowFallback] = useState(false);
+  // const [fallbackAck, setFallbackAck] = useState(false); // only prompt once per session
   const isDelivery = type === 'DELIVERY';
 
   useEffect(() => { api.myJobs().then((js) => setPending(js.find((j) => j.status === 'CREATED') ?? null)).catch(() => {}); }, []);
 
   const getQuote = () => {
+    // #2 COMING SOON: rides can't be quoted — the Ride tab shows a Coming Soon card instead of a form.
+    if (!isDelivery) return;
     if (!pickup || !dropoff) return toast('Enter a pickup and drop-off');
-    // For deliveries, explain the "receiver unavailable" choice once before quoting.
-    if (isDelivery && !fallbackAck) { setShowFallback(true); return; }
+    // #4 MULTI-STOP: every added stop must have an address before we can price the route.
+    if (extraStops.some((s) => !s.place)) return toast('Enter an address for each added stop');
+    // #0 DIRECT DELIVERY: no more "receiver unavailable" explainer before quoting — go straight to the quote.
+    // if (isDelivery && !fallbackAck) { setShowFallback(true); return; }
     void fetchQuote();
   };
 
@@ -65,21 +90,35 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
     try {
       const pt: GeoPoint = { lat: pickup.lat, lng: pickup.lng };
       const dt: GeoPoint = { lat: dropoff.lat, lng: dropoff.lng };
-      setQuote(await api.quote({ type, pickup: pt, dropoff: dt }));
+      // #4 MULTI-STOP: ordered EXTRA drop-off points AFTER the primary drop-off (same order as the UI).
+      const stopPts: GeoPoint[] = extraStops.flatMap((s) => (s.place ? [{ lat: s.place.lat, lng: s.place.lng }] : []));
+      setQuote(await api.quote({ type, pickup: pt, dropoff: dt, ...(stopPts.length ? { stops: stopPts } : {}) }));
       // Auto-scroll to the price breakdown as soon as it's ready (matches web).
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };
 
-  const confirmFallback = () => { setFallbackAck(true); setShowFallback(false); void fetchQuote(); };
+  // #0 DIRECT DELIVERY: the fallback explainer modal is gone, so this confirm handler is no longer used.
+  // const confirmFallback = () => { setFallbackAck(true); setShowFallback(false); void fetchQuote(); };
 
   const pay = async () => {
+    // #2 COMING SOON: guard — rides never reach a paid booking.
+    if (!isDelivery) return;
     if (!quote || !pickup || !dropoff) return;
     setBusy(true);
     try {
       const returnUrl = Linking.createURL('track');
+      // #4 MULTI-STOP: per-stop metadata in the SAME order & count as the quote `stops`. The geo points
+      // come from the signed quote, so here we only carry labels/recipient/item.
+      const extraStopDtos: ExtraStopDto[] = extraStops.map((s) => ({
+        ...(s.place?.label ? { address: s.place.label } : {}),
+        ...(s.place?.area ? { area: s.place.area } : {}),
+        ...(s.recipientName.trim() && s.recipientPhone.trim() ? { recipient: { name: s.recipientName.trim(), phone: s.recipientPhone.trim() } } : {}),
+        ...(s.item.trim() ? { item: s.item.trim() } : {}),
+      }));
       const job = await api.createJob({
-        quoteToken: quote.quoteToken, fallbackPolicy: fallback, returnUrl,
+        // #0 DIRECT DELIVERY: no longer send `fallbackPolicy` — backend defaults to direct mode.
+        quoteToken: quote.quoteToken, returnUrl,
         // Only send optional fields when they actually have a value — the server rejects empty strings.
         ...(pickup.label ? { pickupAddress: pickup.label } : {}),
         ...(dropoff.label ? { dropoffAddress: dropoff.label } : {}),
@@ -89,6 +128,7 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
         ...(isDelivery && item ? { item } : {}), ...(isDelivery && instructions ? { instructions } : {}),
         ...(isDelivery && Number(weight) > 0 ? { weightKg: Number(weight) } : {}),
         ...(isDelivery && customerName.trim() ? { customerName: customerName.trim() } : {}),
+        ...(isDelivery && extraStopDtos.length ? { extraStops: extraStopDtos } : {}),
       });
       // Open the Flutterwave hosted checkout in a stable in-app Safari view. (The ASWebAuthenticationSession
       // API crashes on this device, so we avoid it.) When Flutterwave redirects back to our deep link on
@@ -106,7 +146,13 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
         });
         try { await WebBrowser.openBrowserAsync(link); } finally { sub.remove(); }
       }
-      navigation.navigate('Track', { jobId: job.id });
+      // #4 MULTI-STOP: surface each extra stop's single-use code once (returned only here) so the
+      // customer can share them, then continue to tracking. Single-stop bookings go straight through.
+      if (job.extraStopCodes && job.extraStopCodes.length) {
+        setStopCodes({ jobId: job.id, codes: job.extraStopCodes });
+      } else {
+        navigation.navigate('Track', { jobId: job.id });
+      }
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };
 
@@ -139,6 +185,12 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
           onChange={(v) => { setType(v); setQuote(null); }}
         />
 
+        {/* #2 COMING SOON: Rydafirst is licensed as a courier, not a ride-hailing operator, so the Ride
+            tab shows an on-brand Coming Soon state instead of a booking form. Delivery stays fully active. */}
+        {!isDelivery ? (
+          <RideComingSoon />
+        ) : (
+        <>
         <MapPreview pickup={pickup} dropoff={dropoff} />
 
         {showLocPrompt && (
@@ -159,6 +211,34 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
           <AddressField label={isDelivery ? 'DROP-OFF' : 'TO'} onFocus={() => scrollToField(dropoffY)} onSelect={(p) => { setDropoff(p); setQuote(null); }} />
         </View>
 
+        {/* #4 MULTI-STOP: ordered EXTRA drop-offs (the primary drop-off above is stop 1). Each is a full
+            AddressField plus optional recipient + item, priced into the same quote and booking. */}
+        {isDelivery && (
+          <>
+            {extraStops.map((s, i) => (
+              <View key={i} style={{ marginBottom: 4 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 6 }}>
+                  <Mono style={{ color: t.ink, letterSpacing: 0.7 }}>STOP {i + 2}</Mono>
+                  <PressableScale onPress={() => removeStop(i)} style={{ paddingVertical: 3, paddingHorizontal: 8 }}>
+                    <Mono style={{ color: t.danger }}>REMOVE ✕</Mono>
+                  </PressableScale>
+                </View>
+                <AddressField label={`STOP ${i + 2} DROP-OFF`} onSelect={(p) => { patchStop(i, { place: p }); setQuote(null); }} />
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flex: 1 }}><Field label="Recipient name"><Input value={s.recipientName} onChangeText={(v) => patchStop(i, { recipientName: v })} /></Field></View>
+                  <View style={{ flex: 1 }}><Field label="Recipient phone"><Input value={s.recipientPhone} onChangeText={(v) => patchStop(i, { recipientPhone: v })} placeholder="+234…" keyboardType="phone-pad" /></Field></View>
+                </View>
+                <Field label="What are you sending? (optional)"><Input value={s.item} onChangeText={(v) => patchStop(i, { item: v })} placeholder="e.g. documents" /></Field>
+              </View>
+            ))}
+            {extraStops.length < MAX_EXTRA_STOPS && (
+              <PressableScale onPress={addStop} style={{ borderWidth: 1, borderColor: t.line, borderRadius: t.radius.md, borderStyle: 'dashed', paddingVertical: 12, alignItems: 'center', marginBottom: 12, backgroundColor: t.bg }}>
+                <Mono style={{ color: t.ink }}>+ ADD ANOTHER STOP</Mono>
+              </PressableScale>
+            )}
+          </>
+        )}
+
         {isDelivery && (
           <>
             <Field label="Your name"><Input value={customerName} onChangeText={setCustomerName} placeholder="Shown to your rider" /></Field>
@@ -171,6 +251,8 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
               <View style={{ flex: 1 }}><Field label="Recipient phone"><Input value={recipientPhone} onChangeText={setRecipientPhone} placeholder="+234…" keyboardType="phone-pad" /></Field></View>
             </View>
             <Field label="Notes for the rider (optional)"><Input value={instructions} onChangeText={setInstructions} placeholder="e.g. call on arrival, gate code 1234" /></Field>
+            {/* #0 DIRECT DELIVERY: the "If receiver unavailable" Wait/Delegate/Return chooser is disabled
+                for launch. If the receiver isn't around, rider and customer simply call/chat to sort it out.
             <Field label="If receiver unavailable">
               <View style={{ gap: 6 }}>
                 {FALLBACK_OPTIONS.map((f) => (
@@ -181,6 +263,7 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
               </View>
               <Mono onPress={() => setShowFallback(true)} style={{ color: t.ink2, marginTop: 6 }}>WHAT DO THESE MEAN? →</Mono>
             </Field>
+            */}
           </>
         )}
 
@@ -188,32 +271,61 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
         <Button label="Get quote" onPress={getQuote} busy={busy} />
 
         {quote && (() => {
+          // #0 DIRECT DELIVERY: no return deposit is ever charged — show the plain quote total.
           // "Return it to me" pre-charges a refundable 75% deposit so the rider can be paid to bring
           // it back if needed. It's refunded in full when the delivery succeeds.
-          const returnDeposit = fallback === 'RETURN' ? Math.round(quote.breakdown.totalMinor * 0.75) : 0;
-          const grandTotal = quote.breakdown.totalMinor + returnDeposit;
+          // const returnDeposit = fallback === 'RETURN' ? Math.round(quote.breakdown.totalMinor * 0.75) : 0;
+          // const grandTotal = quote.breakdown.totalMinor + returnDeposit;
           return (
             <Card style={{ marginTop: 16 }}>
               <Row label="Base" value={naira(quote.breakdown.baseMinor)} />
               <Row label="Distance" value={naira(quote.breakdown.distanceMinor)} />
+              <Row label="Time" value={naira(quote.breakdown.timeMinor)} />
               <Row label="Platform fee" value={naira(quote.breakdown.platformFeeMinor)} />
-              {returnDeposit > 0 && <Row label="Return deposit (refundable)" value={naira(returnDeposit)} />}
+              {/* #0 DIRECT DELIVERY: return-deposit row removed. */}
+              {/* {returnDeposit > 0 && <Row label="Return deposit (refundable)" value={naira(returnDeposit)} />} */}
               <Divider />
-              <Row label="Total" value={naira(grandTotal)} strong />
+              <Row label="Total" value={naira(quote.breakdown.totalMinor)} strong />
+              {/* #0 DIRECT DELIVERY: return-deposit explainer removed.
               {returnDeposit > 0 && (
                 <Text style={{ fontSize: t.size.caption, color: t.ink2, marginTop: 6, lineHeight: 17 }}>
                   Includes a {naira(returnDeposit)} return deposit — fully refunded if your delivery is completed, or used to pay the rider if the parcel is returned to you.
                 </Text>
-              )}
+              )} */}
               <Spacer h={12} />
               <Button label="Pay & hold in escrow" onPress={pay} busy={busy} />
               <Mono style={{ textAlign: 'center', marginTop: 8, color: t.ink2, fontSize: t.size.caption }}>HELD SAFELY UNTIL DELIVERY IS CONFIRMED</Mono>
             </Card>
           );
         })()}
+        </>
+        )}
       </KeyboardScreen>
 
-      {/* Explainer sheet for the "receiver unavailable" choice, shown on first Get quote. */}
+      {/* #4 MULTI-STOP: the created-job response returns each extra stop's single-use code exactly once.
+          Show them here so the customer can share each with the matching recipient, then continue to
+          tracking (where the primary drop-off code is revealed as usual). */}
+      <Modal visible={!!stopCodes} transparent animationType="slide" onRequestClose={() => { const id = stopCodes?.jobId; setStopCodes(null); if (id) navigation.navigate('Track', { jobId: id }); }}>
+        <View style={ms.overlay}>
+          <View style={ms.sheet}>
+            <Text style={{ fontSize: t.size.subtitle, fontWeight: '700' }}>Your stop codes</Text>
+            <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 4, marginBottom: 14, lineHeight: 19 }}>
+              Share each code with the matching recipient — the rider needs it to complete that drop-off. Your primary drop-off code is on the tracking screen.
+            </Text>
+            {(stopCodes?.codes ?? []).map((c, i) => (
+              <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: t.line2 }}>
+                <Mono style={{ color: t.ink }}>STOP {i + 2}</Mono>
+                <Text style={{ fontFamily: t.mono, fontSize: t.size.dataLg, fontWeight: '700', letterSpacing: 6, color: t.ink }}>{c}</Text>
+              </View>
+            ))}
+            <Spacer h={16} />
+            <Button label="Continue to tracking" onPress={() => { const id = stopCodes?.jobId; setStopCodes(null); if (id) navigation.navigate('Track', { jobId: id }); }} />
+          </View>
+        </View>
+      </Modal>
+
+      {/* #0 DIRECT DELIVERY: the "receiver unavailable" explainer sheet is disabled for launch.
+      {/* Explainer sheet for the "receiver unavailable" choice, shown on first Get quote.
       <Modal visible={showFallback} transparent animationType="slide" onRequestClose={confirmFallback}>
         <Pressable style={ms.overlay} onPress={confirmFallback}>
           <Pressable style={ms.sheet} onPress={() => {}}>
@@ -239,7 +351,27 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
           </Pressable>
         </Pressable>
       </Modal>
+      */}
     </>
+  );
+}
+
+// #2 COMING SOON: on-brand placeholder shown when the Ride tab is selected. Rydafirst is a licensed
+// courier (not a ride-hailing operator), so in-app rides are gated behind a Coming Soon card until we
+// launch them. Uses the shared theme + Card/Mono so it matches the rest of the app; remove this and the
+// `!isDelivery` guard above to re-enable ride booking.
+function RideComingSoon() {
+  return (
+    <Card style={{ marginTop: 16, alignItems: 'center', paddingVertical: t.space.x3 }}>
+      <Mono style={{ color: t.primary, fontSize: t.size.caption, letterSpacing: 1 }}>COMING SOON</Mono>
+      <Text style={{ fontSize: t.size.subtitle, fontWeight: '700', color: t.ink, marginTop: 10, textAlign: 'center' }}>
+        Rides are on the way
+      </Text>
+      <Text style={{ fontSize: t.size.small, color: t.ink2, lineHeight: 21, textAlign: 'center', marginTop: 8, maxWidth: 300 }}>
+        We&apos;re focused on fast, reliable deliveries for now. In-app rides are coming soon.
+      </Text>
+      <View style={{ height: 3, width: 44, borderRadius: 2, backgroundColor: t.primary, marginTop: 18 }} />
+    </Card>
   );
 }
 

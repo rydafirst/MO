@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Linking, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
 import { api, naira, type Job, type JobTimings, type RiderSummary } from '../api';
 import { getRole, getToken } from '../lib/session';
 import { Button, Card, Mono, Pill, Screen, Spacer, useToast } from '../ui';
 import { t } from '../theme';
-
-const SUPPORT_EMAIL = 'support@rydafirst.com';
 
 function vehicleLabel(track: string | null): string {
   return track === 'BIKE' ? 'Motorcycle' : track === 'CAR' ? 'Car / Van' : track === 'KEKE' ? 'Keke' : 'Vehicle';
@@ -38,9 +36,9 @@ export function ActivityDetailScreen({ route, navigation }: NativeStackScreenPro
     api.jobTimings(jobId).then(setTimings).catch(() => {});
   }, [jobId, toast]);
 
-  const contactSupport = () => {
-    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`Delivery help (ref ${jobId.slice(0, 8)})`)}`).catch(() => toast('Could not open mail app'));
-  };
+  // #6 per-trip support: open (or resume) a support thread scoped to THIS delivery. SupportChat
+  // reuses the newest un-resolved thread on the trip so it's resumable from here.
+  const contactSupport = () => navigation.navigate('SupportChat', { category: 'DELIVERY_ISSUE', jobId });
 
   if (!job) {
     return <Screen title="Delivery details" onBack={() => navigation.goBack()}><View style={{ padding: 20 }}><Mono style={{ color: t.mid }}>LOADING…</Mono></View></Screen>;

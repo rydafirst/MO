@@ -25,6 +25,9 @@ import { NotificationsScreen } from './screens/Notifications';
 import { DocumentsScreen } from './screens/Documents';
 import { ActivityDetailScreen } from './screens/ActivityDetail';
 import { LegalScreen } from './screens/Legal';
+import { SupportScreen } from './screens/Support';
+import { SupportChatScreen } from './screens/SupportChat';
+import type { SupportCategory } from './api';
 
 export type RootStack = {
   Landing: undefined;
@@ -38,6 +41,9 @@ export type RootStack = {
   Documents: undefined;
   ActivityDetail: { jobId: string };
   Legal: { doc: 'terms' | 'privacy' };
+  Support: undefined;
+  // Open an existing thread (threadId) or start one for a category, optionally scoped to a trip (jobId).
+  SupportChat: { threadId?: string; category?: SupportCategory; jobId?: string };
 };
 const Stack = createNativeStackNavigator<RootStack>();
 const navigationRef = createNavigationContainerRef<RootStack>();
@@ -132,6 +138,8 @@ export default function App() {
             <Stack.Screen name="Documents" component={DocumentsScreen} />
             <Stack.Screen name="ActivityDetail" component={ActivityDetailScreen} />
             <Stack.Screen name="Legal" component={LegalScreen} />
+            <Stack.Screen name="Support" component={SupportScreen} />
+            <Stack.Screen name="SupportChat" component={SupportChatScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </ToastProvider>
