@@ -37,7 +37,11 @@ html,body,#m{height:100%;margin:0;background:${t.bg2}}
  * provider (Google/Mapbox) for exact parity is a later, isolated change to this one function.
  */
 export function leafletTileLayer(): string {
-  return `L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:20}).addTo(map);`;
+  // Keyless OpenStreetMap standard tiles. CARTO's basemaps now stamp an "API KEY REQUIRED" watermark
+  // over unauthenticated tiles, which was showing across the whole map — OSM's tiles are free and
+  // unwatermarked. Swapping to a keyed provider (Google/Mapbox) for exact styling parity remains a
+  // later, isolated change to this one function.
+  return `L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,subdomains:'abc'}).addTo(map);`;
 }
 
 /**

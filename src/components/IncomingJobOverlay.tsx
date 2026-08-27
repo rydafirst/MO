@@ -44,11 +44,13 @@ export function IncomingJobOverlay({
     <Modal visible transparent animationType="slide" onRequestClose={onDismiss}>
       <View style={s.scrim}>
         <View style={s.sheet}>
-          <Text style={s.kicker}>NEW DELIVERY NEARBY</Text>
+          <Text style={s.kicker}>NEW DELIVERY NEARBY{job.stopCount && job.stopCount > 1 ? `  ·  ${job.stopCount} DROPS` : ''}</Text>
 
-          <Text style={s.fare}>{naira(job.amountMinor)}</Text>
+          <Text style={s.kicker}>YOU EARN</Text>
+          <Text style={s.fare}>{naira(job.riderPayoutMinor ?? job.amountMinor)}</Text>
           <Text style={s.route}>
             {job.pickupArea || 'Nearby'} <Text style={{ color: t.mid }}>→</Text> {job.dropoffArea || 'Nearby'}
+            {job.stopCount && job.stopCount > 1 ? <Text style={{ color: t.mid }}>{`  +${job.stopCount - 1} more`}</Text> : null}
           </Text>
 
           <View style={s.stats}>

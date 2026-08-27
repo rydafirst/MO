@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image, Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Location from 'expo-location';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
@@ -68,6 +68,13 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
   const currentExtra = deliveredExtras < extraStops.length ? extraStops[deliveredExtras] : null;
   // 1-based position of the stop currently being worked (for the "Stop X of N" label).
   const currentStopNo = !primaryDelivered ? 1 : Math.min(deliveredExtras + 2, totalStops);
+  // #4 MULTI-STOP: numbered map markers for the extra stops — current = the next undelivered one.
+  const mapStops = extraStops.map((s, i) => ({
+    lat: s.point.lat, lng: s.point.lng,
+    label: s.address || s.area || `Stop ${i + 2}`,
+    done: s.status === 'DELIVERED',
+    current: primaryDelivered && i === deliveredExtras,
+  }));
   const tripRoute = useRoute(job?.pickup, job?.dropoff); // road-following line for the trip map
 
   // Stage-nudge: from the rider's live position, detect when they've reached (or left) a stage but
@@ -117,7 +124,7 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
     return () => clearInterval(id);
   }, [status]);
 
-  const [customer, setCustomer] = useState<{ name?: string; photoUrl?: string; phone?: string; phoneMasked?: boolean; callMode?: 'proxy' | 'direct' } | null>(null);
+  const [customer, setCustomer] = useState<{ name?: string; photoUrl?: string; phone?: string; phoneMasked?: boolean; callMode?: 'proxy' | 'direct'; callNumber?: string } | null>(null);
   useEffect(() => {
     api.getJob(jobId).then((j) => { setJob(j); setStatus(j.status); if (j.fallbackPolicy) setPolicy(j.fallbackPolicy); }).catch(() => {});
     api.jobCustomer(jobId).then(setCustomer).catch(() => {});
@@ -315,24 +322,36 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
     try { await api.releaseJob(jobId); toast('Job released — back to the pool', 'success'); navigation.goBack(); }
     catch (e) { toast((e as Error).message); }
   };
-  // Call the sender. Proxy mode rings us and bridges — no number exposed; direct mode uses tel:.
+  // Call the sender. Confirm first, then place a NORMAL outgoing call: proxy mode dials Rydafirst's
+  // masked line (the server bridges to the customer, no number exposed); direct mode dials tel:. This
+  // replaced the old "server rings you first" flow that made the rider's own phone ring.
   const callCustomer = () => {
-    if (customer?.callMode === 'proxy') {
-      api.requestCall(jobId)
-        .then(() => toast('Calling you now — pick up to connect', 'success'))
-        .catch(() => toast('Could not place the call — please try again'));
-      return;
-    }
-    if (customer?.phone) Linking.openURL(`tel:${customer.phone}`);
+    const masked = customer?.callMode === 'proxy' ? customer?.callNumber : undefined;
+    const direct = customer?.phone;
+    const buttons: { text: string; style?: 'cancel'; onPress?: () => void }[] = [];
+    if (masked) buttons.push({ text: 'In-app call (private)', onPress: () => Linking.openURL(`tel:${masked}`) });
+    if (direct) buttons.push({ text: 'Call out (your phone)', onPress: () => Linking.openURL(`tel:${direct}`) });
+    if (buttons.length === 0) { toast('Calling isn’t available right now'); return; }
+    buttons.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert('Call the customer', 'In-app call keeps your number private — you’re connected through Rydafirst. Call out dials the customer directly.', buttons);
   };
 
   const navTo = (pt?: { lat: number; lng: number }) => { if (pt) Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${pt.lat},${pt.lng}`); };
 
   const nextStep = FLOW[Math.min(step + 1, FLOW.length - 1)];
 
+  // #4 KEYBOARD: the delivery-code inputs sit low in a long scroll, so the number pad used to cover
+  // them. iOS auto-insets via automaticallyAdjustKeyboardInsets; for both platforms we also scroll the
+  // active code card into view on focus. Each code card reports its y via onLayout (only one is mounted
+  // at a time, so a single shared offset is enough).
+  const scrollRef = useRef<ScrollView>(null);
+  const codeCardY = useRef(0);
+  const onCodeCardLayout = (e: { nativeEvent: { layout: { y: number } } }) => { codeCardY.current = e.nativeEvent.layout.y; };
+  const revealCode = () => setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, codeCardY.current - 80), animated: true }), 120);
+
   return (
     <Screen title="Active job" onBack={() => navigation.goBack()}>
-      <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 20, paddingBottom: 260 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
         <Mono style={{ marginBottom: 12 }}>{status.replace(/_/g, ' ')}</Mono>
         <View style={{ flexDirection: 'row', gap: 4, marginBottom: 20 }}>
           {FLOW.map((_, i) => <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i <= step ? t.ink : t.line2 }} />)}
@@ -402,13 +421,14 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
                   route={tripRoute?.points ?? null}
                   distanceMeters={tripRoute?.distanceMeters}
                   durationSeconds={tripRoute?.durationSeconds}
+                  stops={mapStops}
                   height={220}
                 />
               </View>
             ) : null}
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-              <PressableScale onPress={() => navTo(job.pickup)} style={[s.chip, { flex: 1 }]}><Mono style={{ color: t.ink, fontSize: t.size.caption }}>NAVIGATE TO PICKUP</Mono></PressableScale>
-              <PressableScale onPress={() => navTo(job.dropoff)} style={[s.chip, { flex: 1 }]}><Mono style={{ color: t.ink, fontSize: t.size.caption }}>NAVIGATE TO DROP-OFF</Mono></PressableScale>
+              <PressableScale onPress={() => navTo(job.pickup)} style={[s.chip, { flex: 1 }]}><Mono numberOfLines={1} adjustsFontSizeToFit style={{ color: t.ink, fontSize: t.size.caption }}>NAV · PICKUP</Mono></PressableScale>
+              <PressableScale onPress={() => navTo(job.dropoff)} style={[s.chip, { flex: 1 }]}><Mono numberOfLines={1} adjustsFontSizeToFit style={{ color: t.ink, fontSize: t.size.caption }}>NAV · DROP-OFF</Mono></PressableScale>
             </View>
           </Card>
         )}
@@ -468,9 +488,9 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
               )}
             </Card>
             */}
-            <Card style={{ marginBottom: 12 }}>
+            <Card style={{ marginBottom: 12 }} onLayout={onCodeCardLayout}>
               <Mono style={{ fontSize: t.size.caption }}>{policy === 'DELEGATE' ? 'ENTER THE CODE (RECEIVER OR THEIR PROXY)' : "ENTER THE RECEIVER'S DELIVERY CODE"}</Mono>
-              <TextInput style={s.codeInput} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={4} />
+              <TextInput style={s.codeInput} value={code} onChangeText={setCode} onFocus={revealCode} keyboardType="number-pad" maxLength={4} />
               <Button label={confirming ? 'Confirming…' : 'Confirm & get paid'} onPress={confirm} busy={confirming} />
             </Card>
             <PressableScale onPress={() => navigation.navigate('Chat', { jobId })} style={[s.chip, { marginTop: 4 }]}>
@@ -479,9 +499,9 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
           </>
         ) : status === 'ARRIVED' ? (
           <>
-            <Card style={{ marginBottom: 12 }}>
+            <Card style={{ marginBottom: 12 }} onLayout={onCodeCardLayout}>
               <Mono style={{ fontSize: t.size.caption }}>{policy === 'DELEGATE' ? 'ENTER THE CODE (RECEIVER OR THEIR PROXY)' : "ENTER THE RECEIVER'S DELIVERY CODE"}</Mono>
-              <TextInput style={s.codeInput} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={4} />
+              <TextInput style={s.codeInput} value={code} onChangeText={setCode} onFocus={revealCode} keyboardType="number-pad" maxLength={4} />
               <Button label={confirming ? 'Confirming…' : 'Confirm & get paid'} onPress={confirm} busy={confirming} />
             </Card>
             {/* #0 DIRECT DELIVERY: the "Start waiting / waiting fee / return" recipient-unavailable flow is
@@ -531,9 +551,9 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
                 {currentExtra.instructions ? <Detail label="Notes" value={currentExtra.instructions} /> : null}
                 <PressableScale onPress={() => navTo(currentExtra.point)} style={[s.chip, { marginTop: 8 }]}><Mono style={{ color: t.ink }}>NAVIGATE TO THIS STOP</Mono></PressableScale>
               </Card>
-              <Card style={{ marginBottom: 12 }}>
+              <Card style={{ marginBottom: 12 }} onLayout={onCodeCardLayout}>
                 <Mono style={{ fontSize: t.size.caption }}>ENTER THIS STOP&apos;S DELIVERY CODE</Mono>
-                <TextInput style={s.codeInput} value={stopCode} onChangeText={setStopCode} keyboardType="number-pad" maxLength={4} />
+                <TextInput style={s.codeInput} value={stopCode} onChangeText={setStopCode} onFocus={revealCode} keyboardType="number-pad" maxLength={4} />
                 <Button label={confirmingStop ? 'Confirming…' : deliveredExtras >= extraStops.length - 1 ? 'Confirm final stop & get paid' : 'Confirm stop & continue'} onPress={confirmCurrentStop} busy={confirmingStop} />
               </Card>
               <PressableScale onPress={() => navigation.navigate('Chat', { jobId })} style={[s.chip, { marginTop: 4 }]}>

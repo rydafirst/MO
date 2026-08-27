@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextInputProps, View, ViewStyle, TextStyle } from 'react-native';
+import { Animated, KeyboardAvoidingView, LayoutChangeEvent, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextInputProps, View, ViewStyle, TextStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { t } from './theme';
 
@@ -128,12 +128,12 @@ export function Screen({ title, onBack, children, scroll }: {
   );
 }
 
-export function Card({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
-  return <View style={[us.card, style]}>{children}</View>;
+export function Card({ children, style, onLayout }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; onLayout?: (e: LayoutChangeEvent) => void }) {
+  return <View onLayout={onLayout} style={[us.card, style]}>{children}</View>;
 }
 export function Spacer({ h = 12 }: { h?: number }) { return <View style={{ height: h }} />; }
-export function Mono({ children, style, onPress }: { children: React.ReactNode; style?: StyleProp<TextStyle>; onPress?: () => void }) {
-  return <Text onPress={onPress} style={[{ fontFamily: t.mono, color: t.ink2, fontSize: t.size.caption, letterSpacing: 0.6 }, style]}>{children}</Text>;
+export function Mono({ children, style, onPress, numberOfLines, adjustsFontSizeToFit }: { children: React.ReactNode; style?: StyleProp<TextStyle>; onPress?: () => void; numberOfLines?: number; adjustsFontSizeToFit?: boolean }) {
+  return <Text onPress={onPress} numberOfLines={numberOfLines} adjustsFontSizeToFit={adjustsFontSizeToFit} style={[{ fontFamily: t.mono, color: t.ink2, fontSize: t.size.caption, letterSpacing: 0.6 }, style]}>{children}</Text>;
 }
 export function Pill({ text, color = t.ink }: { text: string; color?: string }) {
   return <View style={[us.pill, { backgroundColor: color }]}><Text style={us.pillTxt}>{text.toUpperCase()}</Text></View>;

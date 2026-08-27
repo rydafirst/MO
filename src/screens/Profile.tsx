@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Image, StyleSheet, Switch, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadAsync, getInfoAsync, FileSystemUploadType } from 'expo-file-system/legacy';
-import { api, type Account } from '../api';
+import { api, naira, type Account } from '../api';
 import { clearToken, getRole, getToken } from '../lib/session';
 import { unregisterForPush } from '../lib/push';
 import { setRememberedTab } from '../lib/tabMemory';
@@ -22,11 +22,13 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
   const isRider = role === 'RIDER';
 
   const [phone, setPhone] = useState<string | null>(null);
+  const [earnings, setEarnings] = useState<number | null>(null); // rider earnings, moved here from the dashboard
   const [soundOn, setSoundOn] = useState(isSoundEnabled());
   const toggleSound = (on: boolean) => { setSoundOn(on); void setSoundEnabled(on); };
   useEffect(() => { getToken().then((tok) => setRole(getRole(tok))); }, []);
   useEffect(() => { api.myAvatar().then((a) => setPhotoUrl(a.photoUrl)).catch(() => {}); }, []);
   useEffect(() => { api.me().then((m) => setPhone(m.phone)).catch(() => {}); }, []);
+  useEffect(() => { if (role === 'RIDER') api.wallet().then((w) => setEarnings(w.releasedMinor)).catch(() => setEarnings(null)); }, [role]);
 
   const changePhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -91,6 +93,13 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
           </PressableScale>
         </View>
       </Card>
+
+      {isRider && (
+        <Card style={{ marginBottom: 16 }}>
+          <Mono style={{ fontSize: t.size.caption }}>EARNINGS TODAY</Mono>
+          <Text style={{ fontFamily: t.mono, fontSize: t.size.dataLg, fontWeight: '700', color: t.ink, marginTop: 6 }}>{earnings === null ? '—' : naira(earnings)}</Text>
+        </Card>
+      )}
 
       <BankAccountCard isRider={isRider} />
 

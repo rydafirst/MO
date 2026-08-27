@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image, Linking, ScrollView, Text, View } from 'react-native';
+import { Alert, Image, Linking, ScrollView, Text, View } from 'react-native';
 import { createURL } from 'expo-linking';
 import { chime } from '../lib/settings';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -14,8 +14,11 @@ import { Button, Card, Mono, Pill, PressableScale, Screen, Spacer, useToast } fr
 import { t } from '../theme';
 
 // Ordered lifecycle for the progress bar (identical to web).
-const FLOW = ['FUNDED', 'SEARCHING', 'ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS', 'EN_ROUTE_DROP', 'ARRIVED', 'COMPLETED', 'RELEASED'];
-const HAS_RIDER = ['ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS', 'EN_ROUTE_DROP', 'ARRIVED', 'AWAITING_CODE'];
+// #4 MULTI-STOP: EN_ROUTE_STOP sits between the primary drop-off (ARRIVED) and COMPLETED — the rider
+// has confirmed stop 1 and is working the remaining stops. It MUST be listed here (and in HAS_RIDER)
+// or the customer's whole tracking view collapses the moment stop 1 is confirmed.
+const FLOW = ['FUNDED', 'SEARCHING', 'ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS', 'EN_ROUTE_DROP', 'ARRIVED', 'EN_ROUTE_STOP', 'COMPLETED', 'RELEASED'];
+const HAS_RIDER = ['ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS', 'EN_ROUTE_DROP', 'ARRIVED', 'AWAITING_CODE', 'EN_ROUTE_STOP'];
 // A customer can cancel (and be refunded) any time before the parcel is picked up.
 const CANCELLABLE = ['CREATED', 'FUNDED', 'SEARCHING', 'ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP'];
 // Milestones that trigger an audible follow-up chime for the customer.
@@ -25,6 +28,7 @@ const STATUS_CHIME: Record<string, string> = {
   AT_PICKUP: 'Your rider has arrived at the pickup.',
   IN_PROGRESS: 'Your parcel has been picked up.',
   EN_ROUTE_DROP: 'Your rider is on the way to the drop-off.',
+  EN_ROUTE_STOP: 'Your rider is heading to the next stop.',
   ARRIVED: 'Your rider has arrived at the drop-off.',
   RELEASED: 'Delivered — thanks for riding with Rydafirst.',
 };
@@ -39,6 +43,7 @@ function label(status: string): { text: string; color: string } {
     case 'AT_PICKUP': return { text: 'At pickup', color: t.info };
     case 'IN_PROGRESS': return { text: 'Picked up', color: t.info };
     case 'EN_ROUTE_DROP': return { text: 'On the way to drop-off', color: t.info };
+    case 'EN_ROUTE_STOP': return { text: 'On the way to the next stop', color: t.info };
     case 'ARRIVED': return { text: 'Rider has arrived', color: t.warning };
     case 'AWAITING_CODE': return { text: 'Share your delivery code', color: t.warning };
     case 'COMPLETED': case 'RELEASED': return { text: 'Delivered', color: t.success };
@@ -124,6 +129,13 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
   const primaryDelivered = !!job?.primaryStopDeliveredAt || extraStops.some((x) => x.status === 'DELIVERED');
   const deliveredExtras = extraStops.filter((x) => x.status === 'DELIVERED').length;
   const allStopsDone = isMulti && primaryDelivered && deliveredExtras >= extraStops.length;
+  // #4 MULTI-STOP: numbered markers for the map — the current stop is the first undelivered one.
+  const mapStops = extraStops.map((s, i) => ({
+    lat: s.point.lat, lng: s.point.lng,
+    label: s.address || s.area || `Stop ${i + 2}`,
+    done: s.status === 'DELIVERED',
+    current: primaryDelivered && !allStopsDone && i === deliveredExtras,
+  }));
 
   const reveal = async () => { try { setDeliveryCode((await api.issueCode(jobId)).code); } catch (e) { toast((e as Error).message); } };
   const cancel = async () => {
@@ -137,17 +149,20 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
   const needsResolution = !!job && (job.status === 'WAITING' || job.status === 'AWAITING_RESOLUTION');
   // #0 DIRECT DELIVERY: waiting-fee due flag disabled (no waiting fee is charged).
   // const waitingDue = !!job?.waitingFeeMinor && !job?.waitingTxId;
-  // Call the rider. Proxy mode: ask the server to ring us and bridge — no number is ever exposed.
-  // Direct mode: fall back to a tel: link with the number the server provided.
+  // Call the rider. We always confirm first (never dial straight away), then place a NORMAL outgoing
+  // call from this phone. Proxy mode dials Rydafirst's masked line (the server bridges to the rider and
+  // neither number is exposed); direct mode dials the number the server provided. This replaced the old
+  // "server rings you first" flow that made the caller's own phone ring — which read as calling yourself.
   const callRider = () => {
     if (!rider) return;
-    if (rider.callMode === 'proxy') {
-      api.requestCall(jobId)
-        .then(() => toast('Calling you now — pick up to connect', 'success'))
-        .catch(() => toast('Could not place the call — please try again', 'error'));
-      return;
-    }
-    if (rider.phone) Linking.openURL(`tel:${rider.phone}`);
+    const masked = rider.callMode === 'proxy' ? rider.callNumber : undefined;
+    const direct = rider.phone;
+    const buttons: { text: string; style?: 'cancel'; onPress?: () => void }[] = [];
+    if (masked) buttons.push({ text: 'In-app call (private)', onPress: () => Linking.openURL(`tel:${masked}`) });
+    if (direct) buttons.push({ text: 'Call out (your phone)', onPress: () => Linking.openURL(`tel:${direct}`) });
+    if (buttons.length === 0) { toast('Calling isn’t available right now', 'error'); return; }
+    buttons.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert('Call your rider', 'In-app call keeps your number private — you’re connected through Rydafirst. Call out dials the rider directly.', buttons);
   };
 
   // #0 DIRECT DELIVERY: the waiting-fee payment and "return the package" actions are disabled — these
@@ -260,17 +275,19 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
                   {rider.vehiclePlate ? ` · ${rider.vehiclePlate}` : ''}
                 </Text>
               </View>
-              {/* Only present while the delivery is live — the server withholds contact once the job
-                  ends, so this disappears on its own. In proxy mode we request a call (no number is
-                  ever sent to the app); otherwise we fall back to a direct tel: link. */}
-              {rider.callMode === 'proxy' || rider.phone ? (
-                <PressableScale
-                  onPress={callRider}
-                  style={{ borderWidth: 1, borderColor: t.line, borderRadius: 6, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: t.bg }}
-                >
-                  <Mono style={{ color: t.ink }}>CALL</Mono>
+              {/* Contact the rider while the delivery is live. CALL + MESSAGE sit together here (mirrors
+                  the rider's screen) so the customer has an obvious way to message — not just a faint
+                  link lower down. The server withholds contact once the job ends, so CALL self-hides. */}
+              <View style={{ gap: 6, alignItems: 'stretch' }}>
+                {rider.callMode === 'proxy' || rider.phone ? (
+                  <PressableScale onPress={callRider} style={{ borderWidth: 1, borderColor: t.line, borderRadius: 6, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: t.bg, alignItems: 'center' }}>
+                    <Mono style={{ color: t.ink }}>CALL</Mono>
+                  </PressableScale>
+                ) : null}
+                <PressableScale onPress={() => navigation.navigate('Chat', { jobId })} style={{ borderWidth: 1, borderColor: t.line, borderRadius: 6, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: t.bg, alignItems: 'center' }}>
+                  <Mono style={{ color: t.ink }}>MESSAGE</Mono>
                 </PressableScale>
-              ) : null}
+              </View>
             </View>
           </Card>
         )}
@@ -324,6 +341,7 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
               vehicle={rider?.vehicleType ?? null}
               distanceMeters={tripRoute?.distanceMeters}
               durationSeconds={tripRoute?.durationSeconds}
+              stops={mapStops}
               height={320}
             />
             {hasRider && !point && <Mono style={{ color: t.mid, textAlign: 'center', marginTop: 6 }}>WAITING FOR RIDER LOCATION…</Mono>}

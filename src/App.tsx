@@ -73,6 +73,13 @@ export default function App() {
         navigationRef.navigate('RiderJob', { jobId });
         return;
       }
+      // A new chat message: open that trip's conversation directly, for either party. Without this the
+      // tap fell through to the role branch and opened the tracking/dashboard screen instead of the chat.
+      if (data?.kind === 'chat' && typeof jobId === 'string') {
+        stopPersistentAlert();
+        navigationRef.navigate('Chat', { jobId });
+        return;
+      }
       stopPersistentAlert(); // tapping the alert is an acknowledgement — silence the loop
       const role = getRole(await getToken());
       if (role === 'RIDER') {

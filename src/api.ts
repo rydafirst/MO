@@ -26,6 +26,9 @@ export interface ExtraStop {
 }
 export interface Job {
   id: string; type: JobType; status: string; amountMinor: number; currency: 'NGN'; createdAt: string;
+  // The platform's cut of `amountMinor`. A RIDER's take-home is amountMinor - platformFeeMinor
+  // (use riderNet()); the customer is charged the full amountMinor.
+  platformFeeMinor?: number;
   customerName?: string;
   pickup?: GeoPoint; dropoff?: GeoPoint;
   pickupAddress?: string; dropoffAddress?: string; pickupArea?: string; dropoffArea?: string;
@@ -46,6 +49,15 @@ export interface AvailableJob {
   pickupArea: string; dropoffArea: string; pickupApprox: { lat: number; lng: number };
   tripDistanceMeters: number; tripEtaMin: number;
   toPickupMeters?: number; toPickupEtaMin?: number;
+  // #4 MULTI-STOP: total drop-offs (primary + extras); present only for multi-stop jobs (>1).
+  stopCount?: number;
+  // What the rider is actually paid (customer charge minus the platform fee). Riders see THIS, not gross.
+  riderPayoutMinor: number;
+}
+
+/** A rider's take-home for a job: the customer's charge minus the platform fee. Never show gross to riders. */
+export function riderNet(amountMinor: number, platformFeeMinor?: number): number {
+  return Math.max(0, amountMinor - (platformFeeMinor ?? 0));
 }
 export interface Account { bankCode: string; accountName: string; accountNumberMasked: string; type: 'refund' | 'payout' }
 export interface Bank { code: string; name: string }
@@ -65,7 +77,7 @@ export interface RiderProfile { track: VehicleTrack | null; legalName?: string; 
 // says whether it is a proxy number — dial whatever is given and don't cache it.
 // `callMode`: 'proxy' means masked in-app calling is live — request a call (server rings you) and no
 // number is exposed; 'direct' means fall back to a tel: link with `phone`.
-export interface RiderSummary { name?: string; nameVerified: boolean; vehicleType: VehicleTrack | null; vehiclePlate?: string; vehicleColor?: string; rating?: number; ratingCount?: number; photoUrl?: string; phone?: string; phoneMasked?: boolean; callMode?: 'proxy' | 'direct' }
+export interface RiderSummary { name?: string; nameVerified: boolean; vehicleType: VehicleTrack | null; vehiclePlate?: string; vehicleColor?: string; rating?: number; ratingCount?: number; photoUrl?: string; phone?: string; phoneMasked?: boolean; callMode?: 'proxy' | 'direct'; callNumber?: string }
 /** Per-stage durations for a delivery. `open` marks the stage still running. */
 export type LatenessTier = 'none' | 'rider' | 'all';
 export interface JobTimings {
@@ -209,7 +221,7 @@ export const api = {
     call<RiderProfile>(`/me/documents/profile`, { method: 'PUT', body: JSON.stringify(body) }),
   jobRider: (id: string) => call<{ rider: RiderSummary | null }>(`/jobs/${id}/rider`),
   jobTimings: (id: string) => call<JobTimings>(`/jobs/${id}/timings`),
-  jobCustomer: (id: string) => call<{ name?: string; photoUrl?: string; phone?: string; phoneMasked?: boolean; callMode?: 'proxy' | 'direct' }>(`/jobs/${id}/customer`),
+  jobCustomer: (id: string) => call<{ name?: string; photoUrl?: string; phone?: string; phoneMasked?: boolean; callMode?: 'proxy' | 'direct'; callNumber?: string }>(`/jobs/${id}/customer`),
   // Masked in-app call: server rings the caller, then bridges to the counterparty. No number returned.
   requestCall: (id: string) => call<{ status: string }>(`/jobs/${id}/call`, { method: 'POST' }),
   avatarUploadUrl: (contentType: string, sizeBytes: number) => call<{ uploadUrl: string }>(`/me/avatar/upload-url`, { method: 'POST', body: JSON.stringify({ contentType, sizeBytes }) }),

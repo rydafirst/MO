@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { api, naira, type Job } from '../api';
+import { api, naira, riderNet, type Job } from '../api';
 import type { AppNav } from '../nav';
 import { TabIcon } from '../components/TabIcon';
 import { Card, H1, Mono, Pill, PressableScale } from '../ui';
@@ -8,7 +8,9 @@ import { t } from '../theme';
 
 type Role = 'CUSTOMER' | 'RIDER' | 'ADMIN';
 
-const ACTIVE = ['CREATED', 'FUNDED', 'SEARCHING', 'ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS', 'EN_ROUTE_DROP', 'ARRIVED', 'AWAITING_CODE'];
+// #4 MULTI-STOP: EN_ROUTE_STOP (rider working the remaining stops after stop 1) is an ACTIVE state —
+// without it a multi-stop order vanishes from the customer's "Active"/Ongoing list mid-delivery.
+const ACTIVE = ['CREATED', 'FUNDED', 'SEARCHING', 'ACCEPTED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'IN_PROGRESS', 'EN_ROUTE_DROP', 'ARRIVED', 'AWAITING_CODE', 'EN_ROUTE_STOP'];
 
 type Category = 'all' | 'active' | 'completed' | 'cancelled' | 'failed';
 const FILTERS: { key: Category; label: string }[] = [
@@ -96,7 +98,8 @@ export function ActivityTab({ navigation, role }: { navigation: AppNav; role: Ro
                 <Mono style={{ fontSize: t.size.caption, color: t.mid, marginTop: 3 }}>
                   {new Date(j.createdAt).toLocaleString('en-NG', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                 </Mono>
-                <Text style={{ fontFamily: t.mono, fontSize: t.size.small, fontWeight: '700', marginTop: 4 }}>{naira(j.amountMinor)}</Text>
+                {/* Riders see their take-home (net of the platform fee); customers see what they paid. */}
+                <Text style={{ fontFamily: t.mono, fontSize: t.size.small, fontWeight: '700', marginTop: 4 }}>{naira(isRider ? riderNet(j.amountMinor, j.platformFeeMinor) : j.amountMinor)}</Text>
               </View>
               <Pill text={b.text} color={b.color} />
             </Card>

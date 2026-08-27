@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
-import { api, naira, type AvailableJob, type Job } from '../api';
+import { api, naira, riderNet, type AvailableJob, type Job } from '../api';
 import type { AppNav } from '../nav';
 import { AppHeader } from '../components/AppHeader';
 import { JobsMap, type JobPin } from '../components/JobsMap';
@@ -19,7 +19,6 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
   const [online, setOnline] = useState(false);
   const [jobs, setJobs] = useState<AvailableJob[]>([]);
   const [activeJob, setActiveJob] = useState<Job | null>(null);
-  const [earnings, setEarnings] = useState<number | null>(null);
   const [hasBank, setHasBank] = useState<boolean | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [incoming, setIncoming] = useState<AvailableJob | null>(null); // full-screen takeover for a new job
@@ -29,7 +28,6 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
     await Promise.all([
       api.getAvailability().then((a) => setOnline(a.online)).catch(() => {}),
       api.assignedJobs().then((js) => setActiveJob(js.find((j) => isRiderActive(j.status)) ?? null)).catch(() => {}),
-      api.wallet().then((w) => setEarnings(w.releasedMinor)).catch(() => setEarnings(null)),
       api.getAccount().then((a) => setHasBank(a != null)).catch(() => setHasBank(null)),
     ]);
   }, []);
@@ -118,14 +116,11 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
       {activeJob && (
         <Card style={{ borderColor: t.ink, marginBottom: 16 }}>
           <Mono>YOU HAVE AN ACTIVE DELIVERY</Mono>
-          <Text style={{ fontSize: t.size.body, fontWeight: '700', marginTop: 4 }}>{naira(activeJob.amountMinor)} · {activeJob.status.replace(/_/g, ' ').toLowerCase()}</Text>
+          <Text style={{ fontSize: t.size.body, fontWeight: '700', marginTop: 4 }}>{naira(riderNet(activeJob.amountMinor, activeJob.platformFeeMinor))} · {activeJob.status.replace(/_/g, ' ').toLowerCase()}</Text>
           <Spacer h={10} />
           <Button label="Resume delivery" onPress={() => navigation.navigate('RiderJob', { jobId: activeJob.id })} />
         </Card>
       )}
-
-      <Mono>EARNINGS TODAY</Mono>
-      <Text style={{ fontFamily: t.mono, fontSize: t.size.dataLg, fontWeight: '700', color: t.ink }}>{earnings === null ? '—' : naira(earnings)}</Text>
 
       {noBank && (
         <Card style={{ borderColor: t.primary, marginTop: 12 }}>
@@ -137,7 +132,7 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
 
       {online ? (
         <View style={{ marginVertical: 12 }}>
-          <JobsMap pins={jobs.map((j): JobPin => ({ id: j.id, lat: j.pickupApprox.lat, lng: j.pickupApprox.lng, label: naira(j.amountMinor) }))} />
+          <JobsMap pins={jobs.map((j): JobPin => ({ id: j.id, lat: j.pickupApprox.lat, lng: j.pickupApprox.lng, label: naira(j.riderPayoutMinor ?? j.amountMinor) }))} />
           <Mono style={{ textAlign: 'center', color: t.ink2, marginTop: 8 }}>
             {jobs.length ? `${jobs.length} JOB${jobs.length > 1 ? 'S' : ''} NEARBY` : 'ONLINE — WAITING FOR JOBS'}
           </Mono>
@@ -158,10 +153,21 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
           ) : jobs.map((j) => (
             <Card key={j.id} style={{ marginBottom: 10 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Mono>{j.type}</Mono>
-                <Text style={{ fontFamily: t.mono, fontSize: t.size.subtitle, fontWeight: '700' }}>{naira(j.amountMinor)}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Mono>{j.type}</Mono>
+                  {/* #4 MULTI-STOP: flag extra drop-offs BEFORE the rider accepts, so the added work is visible. */}
+                  {j.stopCount && j.stopCount > 1 ? (
+                    <View style={{ backgroundColor: t.ink, borderRadius: t.radius.sm, paddingHorizontal: 7, paddingVertical: 2 }}>
+                      <Mono style={{ color: t.onDark, fontSize: t.size.caption }}>{j.stopCount} DROPS</Mono>
+                    </View>
+                  ) : null}
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Mono style={{ fontSize: t.size.caption, color: t.mid }}>YOU EARN</Mono>
+                  <Text style={{ fontFamily: t.mono, fontSize: t.size.subtitle, fontWeight: '700' }}>{naira(j.riderPayoutMinor ?? j.amountMinor)}</Text>
+                </View>
               </View>
-              <Text style={{ fontSize: t.size.small, marginVertical: 8 }}>{j.pickupArea || 'Nearby'} <Text style={{ color: t.mid }}>→</Text> {j.dropoffArea || 'Nearby'}</Text>
+              <Text style={{ fontSize: t.size.small, marginVertical: 8 }}>{j.pickupArea || 'Nearby'} <Text style={{ color: t.mid }}>→</Text> {j.dropoffArea || 'Nearby'}{j.stopCount && j.stopCount > 1 ? ` +${j.stopCount - 1} more` : ''}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
                 {j.toPickupMeters !== undefined && (
                   <Mono style={{ color: t.ink }}>{km(j.toPickupMeters)} · ~{j.toPickupEtaMin} MIN AWAY</Mono>

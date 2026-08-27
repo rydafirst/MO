@@ -37,11 +37,34 @@ export async function setSoundEnabled(on: boolean): Promise<void> {
 }
 
 /**
- * Play an audible alert for a key moment (e.g. a waiting session starting), unless the user has muted
- * sounds. Reuses the notification sound already configured for the app — the foreground handler plays
- * it — so no audio asset needs bundling. Best-effort.
+ * Play an audible alert for a key moment (e.g. a new job, a waiting session starting), unless the user
+ * has muted sounds. Best-effort.
+ *
+ * Why the channel matters: this is a LOCAL notification, so it never passes through the server push
+ * path that tags urgent messages with the high-importance 'urgent' channel. Posted on the plain
+ * 'default' channel, Android would show it silently (a DEFAULT-importance channel doesn't reliably
+ * sound in the foreground) — which is exactly why the rider's new-order alert made no sound. We create
+ * the sound-carrying 'urgent' channel (idempotent) and route the notification to it so it actually
+ * rings, foreground or background.
  */
 export function chime(title: string, body: string): void {
   if (!soundEnabled) return;
-  Notifications.scheduleNotificationAsync({ content: { title, body, sound: true }, trigger: null }).catch(() => {});
+  void (async () => {
+    try {
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('urgent', {
+          name: 'Urgent alerts',
+          importance: Notifications.AndroidImportance.MAX,
+          sound: 'default',
+          vibrationPattern: [0, 250, 250, 250],
+        });
+      }
+      await Notifications.scheduleNotificationAsync({
+        content: { title, body, sound: true },
+        // A channel-aware immediate trigger — fires now, but pinned to the sound-carrying 'urgent'
+        // channel on Android. iOS ignores channelId and just uses `sound: true`.
+        trigger: Platform.OS === 'android' ? { channelId: 'urgent' } as Notifications.NotificationTriggerInput : null,
+      });
+    } catch { /* best-effort — a failed chime must never throw into a hot path */ }
+  })();
 }
