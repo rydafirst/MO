@@ -93,7 +93,9 @@ export function ActivityTab({ navigation, role }: { navigation: AppNav; role: Ro
               <View style={s.thumb}><TabIcon name="bike" color={t.ink} size={22} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: t.size.body, fontWeight: '700' }} numberOfLines={1}>
-                  {j.dropoffArea || j.dropoffAddress || 'Delivery'}
+                  {j.type === 'ERRAND'
+                    ? (j.errand?.store?.name ? `Order · ${j.errand.store.name}` : 'Errand')
+                    : (j.dropoffArea || j.dropoffAddress || 'Delivery')}
                 </Text>
                 <Mono style={{ fontSize: t.size.caption, color: t.mid, marginTop: 3 }}>
                   {new Date(j.createdAt).toLocaleString('en-NG', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}

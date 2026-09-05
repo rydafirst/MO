@@ -13,6 +13,9 @@ import { metersBetween } from '../lib/geo';
 import { chime } from '../lib/settings';
 import { notifyStageNudge, clearStageNudge } from '../lib/stageNudge';
 import { Map } from '../components/Map';
+import { VendorAccountCapture } from '../components/VendorAccountCapture';
+import { ErrandTopUpRequest } from '../components/ErrandTopUpRequest';
+import { ErrandReceiptModal } from '../components/ErrandReceipt';
 import { Button, Card, Mono, PressableScale, Screen, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
@@ -35,6 +38,7 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
   const { jobId } = route.params;
   const toast = useToast();
   const [job, setJob] = useState<Job | null>(null);
+  const [showReceipt, setShowReceipt] = useState(false);
   const [status, setStatus] = useState('ACCEPTED');
   const [policy, setPolicy] = useState<Fallback>('WAIT');
   const [code, setCode] = useState('');
@@ -366,9 +370,34 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
         )}
         {!done && geoOn && <Mono style={{ color: t.success, marginBottom: 16 }}>● SHARING YOUR LIVE LOCATION</Mono>}
 
+        {/* ERRAND ("buy-for-me"): what to buy + how much, and the vendor-account capture at the store. */}
+        {!done && job?.type === 'ERRAND' && job.errand ? (
+          <Card style={{ marginBottom: 16, borderColor: t.primary }}>
+            <Mono style={{ color: t.primary, marginBottom: 8 }}>ERRAND · BUY FOR THE CUSTOMER</Mono>
+            {job.errand.store?.name ? <Detail label="Shop" value={job.errand.store.name} /> : null}
+            <Detail label="Buy" value={job.errand.shoppingList} />
+            <Detail label="Amount to spend" value={naira(job.errand.goodsMinor)} />
+            {job.errand.vendorPaidAt ? (
+              <View style={{ marginTop: 8 }}>
+                <Mono style={{ color: t.success, marginBottom: 8 }}>✓ VENDOR PAID — COLLECT THE ITEMS AND DELIVER</Mono>
+                <Button label="Show payment receipt to shop" variant="ghost" onPress={() => setShowReceipt(true)} />
+              </View>
+            ) : job.errand.vendorAccount ? (
+              <Mono style={{ color: t.ink2, marginTop: 8 }}>ACCOUNT SENT — WAITING FOR THE CUSTOMER TO APPROVE PAYMENT</Mono>
+            ) : (
+              <View style={{ marginTop: 10 }}>
+                <VendorAccountCapture jobId={jobId} onCaptured={() => { api.getJob(jobId).then(setJob).catch(() => {}); }} />
+              </View>
+            )}
+            {/* Shop price higher than declared: ask the customer to add the difference (in-app). */}
+            <ErrandTopUpRequest job={job} onRequested={() => { api.getJob(jobId).then(setJob).catch(() => {}); }} />
+          </Card>
+        ) : null}
+        {job?.type === 'ERRAND' ? <ErrandReceiptModal jobId={jobId} visible={showReceipt} onClose={() => setShowReceipt(false)} /> : null}
+
         {!done && job && (
           <Card style={{ marginBottom: 16 }}>
-            <Mono style={{ marginBottom: 10 }}>DELIVERY DETAILS</Mono>
+            <Mono style={{ marginBottom: 10 }}>{job.type === 'ERRAND' ? 'DELIVER TO' : 'DELIVERY DETAILS'}</Mono>
             {(customer?.photoUrl || customer?.name || job.customerName) ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                 {customer?.photoUrl ? (

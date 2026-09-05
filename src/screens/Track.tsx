@@ -10,6 +10,7 @@ import { useJobLocation } from '../lib/socket';
 import { Map } from '../components/Map';
 import { useRoute } from '../lib/routing';
 import { BankAccountForm } from '../components/BankAccountForm';
+import { ErrandReceiptModal } from '../components/ErrandReceipt';
 import { Button, Card, Mono, Pill, PressableScale, Screen, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
@@ -65,6 +66,9 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
   const [job, setJob] = useState<Job | null>(null);
   const [uid, setUid] = useState('');
   const [deliveryCode, setDeliveryCode] = useState<string | null>(null);
+  // #4 MULTI-STOP: codes revealed per extra stop (keyed by 0-based extra-stop index), plus which one is loading.
+  const [stopCodes, setStopCodes] = useState<Record<number, string>>({});
+  const [revealingStop, setRevealingStop] = useState<number | null>(null);
   const [showCancel, setShowCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [refAcct, setRefAcct] = useState<Account | null>(null);
@@ -138,6 +142,34 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
   }));
 
   const reveal = async () => { try { setDeliveryCode((await api.issueCode(jobId)).code); } catch (e) { toast((e as Error).message); } };
+  // ERRAND: approve the shop account the rider captured — this releases the goods-money to that account.
+  const [approvingVendor, setApprovingVendor] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const approveVendor = async () => {
+    setApprovingVendor(true);
+    try { await api.errandApproveVendor(jobId); toast('Approved — paying the shop now', 'success'); setJob(await api.getJob(jobId)); }
+    catch (e) { toast((e as Error).message); }
+    finally { setApprovingVendor(false); }
+  };
+  // ERRAND: the shop costs more than declared — the rider asked the customer to add the difference.
+  // The extra is collected through the app (Flutterwave hosted checkout) and funded by the webhook,
+  // then it grows the goods held for the vendor. The rider's delivery fee is never touched.
+  const [addingTopUp, setAddingTopUp] = useState(false);
+  const addTopUp = async () => {
+    setAddingTopUp(true);
+    try {
+      const r = await api.errandStartTopUp(jobId, createURL('track'));
+      if (r.paymentLink) Linking.openURL(r.paymentLink);
+    } catch (e) { toast((e as Error).message); }
+    finally { setAddingTopUp(false); }
+  };
+  // #4 MULTI-STOP: reveal (mint fresh) the code for a specific extra stop — no need to screenshot at booking.
+  const revealStopCode = async (i: number) => {
+    setRevealingStop(i);
+    try { const r = await api.issueStopCode(jobId, i); setStopCodes((p) => ({ ...p, [i]: r.code })); }
+    catch (e) { toast((e as Error).message); }
+    finally { setRevealingStop(null); }
+  };
   const cancel = async () => {
     setCancelling(true);
     try { await api.cancelJob(jobId); toast('Order cancelled', 'success'); navigation.navigate('Main'); }
@@ -253,6 +285,45 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
           </Card>
         )}
 
+        {/* ERRAND ("buy-for-me"): summary + the approve-and-pay step when the rider is at the shop. */}
+        {job?.type === 'ERRAND' && job.errand ? (
+          <Card style={{ marginBottom: 12, borderColor: job.errand.vendorAccount && !job.errand.vendorPaidAt ? t.warning : t.line }}>
+            <Mono style={{ marginBottom: 6 }}>ERRAND · WE&apos;LL BUY IT FOR YOU</Mono>
+            <Row label="Buying" value={job.errand.shoppingList} />
+            <Row label="Amount" value={naira(job.errand.goodsMinor)} strong />
+            {/* Shop price higher than declared: the rider asked for more — add it through the app. */}
+            {!job.errand.vendorPaidAt && (job.errand.requestedTopUpMinor ?? 0) > 0 ? (
+              <View style={{ marginTop: 10, borderWidth: 1, borderColor: t.warning, borderRadius: 8, padding: 12 }}>
+                <Mono style={{ color: t.warning, marginBottom: 6 }}>YOUR RIDER NEEDS MORE</Mono>
+                <Text style={{ fontSize: t.size.small, color: t.ink2, marginBottom: 10, lineHeight: 19 }}>
+                  The items cost more than expected. Add {naira(job.errand.requestedTopUpMinor!)} so your rider can pay the shop. The money stays in escrow and goes to the shop, never the rider.
+                </Text>
+                <Button label={addingTopUp ? 'Opening…' : `Add ${naira(job.errand.requestedTopUpMinor!)}`} onPress={addTopUp} busy={addingTopUp} />
+              </View>
+            ) : null}
+            {job.errand.vendorPaidAt ? (
+              <View style={{ marginTop: 8 }}>
+                <Mono style={{ color: t.success, marginBottom: 8 }}>✓ PAID THE SHOP — YOUR RIDER IS BRINGING YOUR ITEMS</Mono>
+                <Button label="View payment receipt" variant="ghost" onPress={() => setShowReceipt(true)} />
+              </View>
+            ) : job.errand.vendorAccount ? (
+              <View style={{ marginTop: 10 }}>
+                <Text style={{ fontSize: t.size.small, color: t.ink2, marginBottom: 8, lineHeight: 19 }}>
+                  Your rider is at the shop. Confirm the shop&apos;s account below, then approve to pay {naira(job.errand.goodsMinor)}.
+                </Text>
+                <View style={{ borderWidth: 1, borderColor: t.line, borderRadius: 8, padding: 12, marginBottom: 10 }}>
+                  <Mono style={{ fontSize: t.size.caption, color: t.ink2 }}>SHOP ACCOUNT NAME</Mono>
+                  <Text style={{ fontSize: t.size.body, fontWeight: '700', marginTop: 2 }}>{job.errand.vendorAccount.accountName}</Text>
+                </View>
+                <Button label={approvingVendor ? 'Approving…' : `Approve & pay ${naira(job.errand.goodsMinor)}`} onPress={approveVendor} busy={approvingVendor} />
+              </View>
+            ) : (
+              <Mono style={{ color: t.ink2, marginTop: 8 }}>YOUR RIDER WILL ENTER THE SHOP&apos;S ACCOUNT WHEN THEY ARRIVE</Mono>
+            )}
+          </Card>
+        ) : null}
+        {job?.type === 'ERRAND' ? <ErrandReceiptModal jobId={jobId} visible={showReceipt} onClose={() => setShowReceipt(false)} /> : null}
+
         {rider && (
           <Card style={{ marginBottom: 12 }}>
             <Mono style={{ marginBottom: 8 }}>YOUR RIDER</Mono>
@@ -326,7 +397,8 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
             {extraStops.map((s, i) => (
               <TrackStopRow key={i} no={i + 2} label={s.address || s.area || `Stop ${i + 2}`}
                 recipient={s.recipient?.name} delivered={s.status === 'DELIVERED'}
-                current={primaryDelivered && !allStopsDone && i === deliveredExtras} />
+                current={primaryDelivered && !allStopsDone && i === deliveredExtras}
+                code={stopCodes[i]} revealing={revealingStop === i} onReveal={() => revealStopCode(i)} />
             ))}
           </Card>
         )}
@@ -457,18 +529,37 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
 }
 
 // #4 MULTI-STOP: one row of the customer's compact stop-progress list.
-function TrackStopRow({ no, label, recipient, delivered, current }: { no: number; label: string; recipient?: string; delivered?: boolean; current?: boolean }) {
+function TrackStopRow({ no, label, recipient, delivered, current, code, revealing, onReveal }: { no: number; label: string; recipient?: string; delivered?: boolean; current?: boolean; code?: string; revealing?: boolean; onReveal?: () => void }) {
   const color = delivered ? t.success : current ? t.ink : t.mid;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 }}>
-      <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: color, backgroundColor: delivered ? t.success : t.bg, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontSize: t.size.caption, fontFamily: t.mono, fontWeight: '700', color: delivered ? t.onDark : color }}>{delivered ? '✓' : no}</Text>
+    <View style={{ paddingVertical: 6 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+        <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: color, backgroundColor: delivered ? t.success : t.bg, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: t.size.caption, fontFamily: t.mono, fontWeight: '700', color: delivered ? t.onDark : color }}>{delivered ? '✓' : no}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: t.size.body, fontWeight: current ? '700' : '400', color: current || delivered ? t.ink : t.ink2 }} numberOfLines={1}>{label}</Text>
+          {recipient ? <Mono style={{ marginTop: 1 }}>{recipient}</Mono> : null}
+        </View>
+        <Mono style={{ color }}>{delivered ? 'DELIVERED' : current ? 'CURRENT' : 'PENDING'}</Mono>
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: t.size.body, fontWeight: current ? '700' : '400', color: current || delivered ? t.ink : t.ink2 }} numberOfLines={1}>{label}</Text>
-        {recipient ? <Mono style={{ marginTop: 1 }}>{recipient}</Mono> : null}
-      </View>
-      <Mono style={{ color }}>{delivered ? 'DELIVERED' : current ? 'CURRENT' : 'PENDING'}</Mono>
+      {/* #4 MULTI-STOP: reveal THIS stop's code on demand (an extra stop only) — no screenshot needed. */}
+      {onReveal && !delivered ? (
+        <View style={{ marginLeft: 32, marginTop: 6 }}>
+          {code ? (
+            <>
+              <Mono style={{ fontSize: t.size.caption }}>CODE FOR STOP {no}</Mono>
+              <Text style={{ fontFamily: t.mono, fontSize: t.size.title, fontWeight: '700', letterSpacing: 5, marginVertical: 2 }}>{code}</Text>
+              <Mono style={{ color: t.ink2 }}>GIVE THIS TO THE PERSON AT STOP {no}</Mono>
+            </>
+          ) : (
+            <PressableScale onPress={onReveal} disabled={revealing}
+              style={{ borderWidth: 1, borderColor: t.line, borderRadius: 6, paddingVertical: 6, paddingHorizontal: 12, alignSelf: 'flex-start', backgroundColor: t.bg }}>
+              <Mono style={{ color: t.ink }}>{revealing ? 'REVEALING…' : `REVEAL CODE FOR STOP ${no}`}</Mono>
+            </PressableScale>
+          )}
+        </View>
+      ) : null}
     </View>
   );
 }

@@ -35,6 +35,8 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
   const scrollToField = (yRef: React.MutableRefObject<number>) =>
     setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, yRef.current - 12), animated: true }), 300);
   const [type, setType] = useState<JobType>('DELIVERY');
+  const [marketplaceOn, setMarketplaceOn] = useState(false); // hidden until public config confirms it
+  useEffect(() => { api.publicConfig().then((c) => setMarketplaceOn(c.marketplaceEnabled)).catch(() => {}); }, []);
   const [pickup, setPickup] = useState<Place | null>(null);
   const [locateSignal, setLocateSignal] = useState(0);
   const [showLocPrompt, setShowLocPrompt] = useState(false);
@@ -184,6 +186,41 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
           value={type}
           onChange={(v) => { setType(v); setQuote(null); }}
         />
+
+        {/* ERRAND ("buy-for-me"): a distinct flow — a rider buys something for you and delivers it. */}
+        <PressableScale onPress={() => navigation.navigate('ErrandBook')}
+          style={{ marginTop: 12, borderWidth: 1, borderColor: t.line, borderRadius: t.radius.lg, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.bg }}>
+          <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: t.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 18 }}>🛍️</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: t.size.body, fontWeight: '700', color: t.ink }}>Send an errand</Text>
+            <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 1 }}>Need something bought and delivered? Tap here.</Text>
+          </View>
+          <Mono style={{ color: t.mid }}>→</Mono>
+        </PressableScale>
+
+        {/* MARKETPLACE: browse/sell entry points — hidden while the marketplace master switch is off. */}
+        {marketplaceOn ? (<>
+        <PressableScale onPress={() => navigation.navigate('Shop')}
+          style={{ marginTop: 12, borderWidth: 1, borderColor: t.line, borderRadius: t.radius.lg, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.bg }}>
+          <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: t.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 18 }}>🛒</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: t.size.body, fontWeight: '700', color: t.ink }}>Shop from vendors</Text>
+            <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 1 }}>Order products and we deliver them to you.</Text>
+          </View>
+          <Mono style={{ color: t.mid }}>→</Mono>
+        </PressableScale>
+
+        {/* MARKETPLACE: become a vendor / manage your shop. */}
+        <PressableScale onPress={() => navigation.navigate('Vendor')}
+          style={{ marginTop: 12, borderWidth: 1, borderColor: t.line, borderRadius: t.radius.lg, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.bg }}>
+          <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: t.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 18 }}>🏪</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: t.size.body, fontWeight: '700', color: t.ink }}>Sell on Rydafirst</Text>
+            <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 1 }}>Register your shop and list your products.</Text>
+          </View>
+          <Mono style={{ color: t.mid }}>→</Mono>
+        </PressableScale>
+        </>) : null}
 
         {/* #2 COMING SOON: Rydafirst is licensed as a courier, not a ride-hailing operator, so the Ride
             tab shows an on-brand Coming Soon state instead of a booking form. Delivery stays fully active. */}

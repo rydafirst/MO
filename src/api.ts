@@ -7,7 +7,40 @@ function normalizeBase(raw: string | undefined): string {
 }
 export const BASE = normalizeBase(process.env.EXPO_PUBLIC_API_URL);
 
-export type JobType = 'DELIVERY' | 'RIDE';
+export type JobType = 'DELIVERY' | 'RIDE' | 'ERRAND';
+
+// ERRAND ("buy-for-me") details carried on a Job of type ERRAND.
+export interface ErrandDetails {
+  goodsMinor: number;
+  shoppingList: string;
+  store?: { name?: string; area?: string; address?: string };
+  vendorAccount?: { bankCode: string; accountNumber: string; accountName: string };
+  vendorApproved?: boolean;
+  vendorPaidAt?: number;
+  deliveryFeeMinor?: number;      // fixed trip fee — top-ups grow only the goods, never this
+  requestedTopUpMinor?: number;   // extra the rider is asking the customer to add
+  topUpTxRef?: string;            // present while a top-up payment is pending
+  topUpTxId?: string;             // set once a top-up is funded
+}
+export interface ErrandReceipt {
+  receiptNo: string; orderId: string; paidAt: number; amountMinor: number; currency: 'NGN';
+  vendorName: string; vendorAccountMasked: string; payoutRef?: string; store?: string; shoppingList: string;
+}
+export type VendorStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
+export interface Vendor {
+  id: string; ownerUserId: string; businessName: string; rcNumber?: string; category?: string; area?: string;
+  description?: string; logoUrl?: string; status: VendorStatus; shopLat?: number; shopLng?: number;
+  account?: { bankCode: string; accountNumber: string; accountName: string };
+  accountVerified: boolean; rejectionReason?: string; approvedAt?: number; createdAt: number;
+}
+export interface Product {
+  id: string; vendorId: string; name: string; priceMinor: number; description?: string;
+  photoUrls?: string[]; available: boolean; createdAt: number;
+}
+export interface VendorOrder {
+  id: string; status: string; createdAt: string; goodsMinor: number; deliveryFeeMinor: number;
+  items: string; customerName?: string; vendorPaidAt?: number; vendorPayoutRef?: string;
+}
 export type Fallback = 'WAIT' | 'DELEGATE' | 'RETURN';
 export interface GeoPoint { lat: number; lng: number }
 export interface Quote {
@@ -39,11 +72,13 @@ export interface Job {
   // #4 MULTI-STOP: present only when the booking has extra drop-offs. `primaryStopDeliveredAt` is set
   // once the primary dropoff is confirmed (status flips to EN_ROUTE_STOP with stops still pending).
   extraStops?: ExtraStop[]; primaryStopDeliveredAt?: number;
+  // ERRAND ("buy-for-me"): present only for type ERRAND.
+  errand?: ErrandDetails;
 }
 // #4 MULTI-STOP: metadata sent per extra stop at booking time — SAME order & COUNT as the quote `stops`
 // (the geo points come from the signed quote, not this body).
 export interface ExtraStopDto { recipient?: { name: string; phone: string }; item?: string; instructions?: string; address?: string; area?: string }
-export interface ChatMessage { id: string; jobId: string; senderId: string; body: string; createdAt: number }
+export interface ChatMessage { id: string; jobId: string; senderId: string; body: string; replyToId?: string; audioUrl?: string; audioDurationMs?: number; imageUrl?: string; createdAt: number }
 export interface AvailableJob {
   id: string; type: JobType; amountMinor: number; currency: 'NGN'; createdAt: string;
   pickupArea: string; dropoffArea: string; pickupApprox: { lat: number; lng: number };
@@ -142,6 +177,51 @@ export const api = {
     // `extraStopCodes` carries each stop's plaintext single-use code, shown ONCE to the customer.
     extraStops?: ExtraStopDto[];
   }) => call<Job & { paymentLink?: string; extraStopCodes?: string[] }>(`/jobs`, { method: 'POST', headers: { 'Idempotency-Key': uuid() }, body: JSON.stringify(body) }),
+  // ERRAND ("buy-for-me"): create the errand (store->customer trip + goods amount held for the vendor).
+  createErrand: (body: {
+    quoteToken: string; goodsMinor: number; shoppingList: string;
+    storeName?: string; storeArea?: string; storeAddress?: string; dropoffAddress?: string; dropoffArea?: string;
+    customerName?: string; returnUrl?: string;
+  }) => call<Job & { paymentLink?: string }>(`/jobs/errand`, { method: 'POST', headers: { 'Idempotency-Key': uuid() }, body: JSON.stringify(body) }),
+  // Rider captures the vendor's business account at the store; returns the resolved name + match.
+  errandVendorAccount: (id: string, bankCode: string, accountNumber: string) =>
+    call<{ accountName: string; match: boolean }>(`/jobs/${id}/errand/vendor-account`, { method: 'POST', body: JSON.stringify({ bankCode, accountNumber }) }),
+  // Customer approves the resolved vendor account — releases the goods-money to the vendor.
+  errandApproveVendor: (id: string) => call<{ paidPending: boolean }>(`/jobs/${id}/errand/approve-vendor`, { method: 'POST' }),
+  // ERRAND top-up: rider flags the shop price is higher; customer adds the extra through the app.
+  errandRequestTopUp: (id: string, additionalMinor: number) =>
+    call<{ requestedTopUpMinor: number }>(`/jobs/${id}/errand/request-topup`, { method: 'POST', body: JSON.stringify({ additionalMinor }) }),
+  errandStartTopUp: (id: string, returnUrl?: string) =>
+    call<{ paymentLink: string; amountMinor: number }>(`/jobs/${id}/errand/start-topup`, { method: 'POST', body: JSON.stringify({ returnUrl }) }),
+  errandConfirmTopUp: (id: string, transactionId: string) =>
+    call<{ funded: boolean; goodsMinor: number }>(`/jobs/${id}/errand/confirm-topup`, { method: 'POST', body: JSON.stringify({ transactionId }) }),
+  // ERRAND: proof-of-payment receipt (shown to the vendor, kept by the customer). Available once paid.
+  errandReceipt: (id: string) => call<ErrandReceipt>(`/jobs/${id}/errand/receipt`),
+  // ---- Vendors (marketplace) ----
+  myVendor: () => call<Vendor | null>(`/vendors/me`),
+  registerVendor: (body: { businessName: string; rcNumber?: string; category?: string; area?: string; description?: string }) =>
+    call<Vendor>(`/vendors`, { method: 'POST', body: JSON.stringify(body) }),
+  updateVendor: (body: { businessName?: string; rcNumber?: string; category?: string; area?: string; description?: string; logoKey?: string; shopLat?: number; shopLng?: number }) =>
+    call<Vendor>(`/vendors/me`, { method: 'PATCH', body: JSON.stringify(body) }),
+  vendorBusinessAccount: (bankCode: string, accountNumber: string) =>
+    call<{ accountName: string; match: boolean }>(`/vendors/me/business-account`, { method: 'POST', body: JSON.stringify({ bankCode, accountNumber }) }),
+  myProducts: () => call<Product[]>(`/vendors/me/products`),
+  addProduct: (body: { name: string; priceMinor: number; description?: string; photoKeys?: string[]; available?: boolean }) =>
+    call<Product>(`/vendors/me/products`, { method: 'POST', body: JSON.stringify(body) }),
+  updateProduct: (productId: string, body: { name?: string; priceMinor?: number; description?: string; photoKeys?: string[]; available?: boolean }) =>
+    call<Product>(`/vendors/me/products/${productId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  removeProduct: (productId: string) => call<{ removed: boolean }>(`/vendors/me/products/${productId}`, { method: 'DELETE' }),
+  vendorLogoUploadUrl: (contentType: string, sizeBytes: number) =>
+    call<{ uploadUrl: string; key: string }>(`/vendors/me/logo-upload-url`, { method: 'POST', body: JSON.stringify({ contentType, sizeBytes }) }),
+  productPhotoUploadUrl: (contentType: string, sizeBytes: number) =>
+    call<{ uploadUrl: string; key: string }>(`/vendors/me/products/photo-upload-url`, { method: 'POST', body: JSON.stringify({ contentType, sizeBytes }) }),
+  vendors: () => call<Vendor[]>(`/vendors`),
+  vendor: (id: string) => call<Vendor>(`/vendors/${id}`),
+  vendorProducts: (id: string) => call<Product[]>(`/vendors/${id}/products`),
+  createMarketplaceOrder: (body: { vendorId: string; items: { productId: string; quantity: number }[]; quoteToken: string; dropoffAddress?: string; dropoffArea?: string; customerName?: string; returnUrl?: string }) =>
+    call<Job & { paymentLink?: string }>(`/jobs/marketplace`, { method: 'POST', headers: { 'Idempotency-Key': uuid() }, body: JSON.stringify(body) }),
+  vendorOrders: () => call<VendorOrder[]>(`/jobs/vendor-orders`),
+  publicConfig: () => call<{ marketplaceEnabled: boolean }>(`/config`, { auth: false }),
   myJobs: () => call<Job[]>(`/jobs/mine`),
   getJob: (id: string) => call<Job>(`/jobs/${id}`),
   cancelJob: (id: string) => call<{ status: string; refunded: boolean }>(`/jobs/${id}/cancel`, { method: 'POST' }),
@@ -173,6 +253,8 @@ export const api = {
   // returns RELEASED (escrow released, rider paid).
   confirmStop: (id: string, index: number, code: string, lat: number, lng: number, accuracyM?: number) =>
     call<{ status: string }>(`/jobs/${id}/stops/${index}/confirm-code`, { method: 'POST', headers: { 'Idempotency-Key': uuid() }, body: JSON.stringify({ code, lat, lng, ...(accuracyM != null ? { accuracyM } : {}) }) }),
+  // #4 MULTI-STOP: customer re-reveals an extra stop's code (0-based index within extraStops).
+  issueStopCode: (id: string, index: number) => call<{ code: string }>(`/jobs/${id}/stops/${index}/code`, { method: 'POST' }),
   failedAttempt: (id: string) =>
     call<{ status: string; attemptFeeMinor: number; waitingFeeMinor: number }>(`/jobs/${id}/failed-attempt`, { method: 'POST', headers: { 'Idempotency-Key': uuid() } }),
   // ---- Recipient-unavailable resolution ----
@@ -192,8 +274,20 @@ export const api = {
     call<Job & { paymentLink?: string }>(`/jobs/${id}/return`, { method: 'POST', body: JSON.stringify(returnUrl ? { returnUrl } : {}) }),
   // ---- Rider <-> customer chat ----
   messages: (id: string) => call<ChatMessage[]>(`/jobs/${id}/messages`),
-  sendMessage: (id: string, body: string) =>
-    call<ChatMessage>(`/jobs/${id}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
+  sendMessage: (id: string, body: string, replyToId?: string, audio?: { audioKey?: string; audioDurationMs?: number }, imageKey?: string) =>
+    call<ChatMessage>(`/jobs/${id}/messages`, { method: 'POST', body: JSON.stringify({
+      ...(body ? { body } : {}),
+      ...(replyToId ? { replyToId } : {}),
+      ...(audio?.audioKey ? { audioKey: audio.audioKey } : {}),
+      ...(audio?.audioDurationMs != null ? { audioDurationMs: audio.audioDurationMs } : {}),
+      ...(imageKey ? { imageKey } : {}),
+    }) }),
+  // Voice notes: get a presigned URL, PUT the recording to it, then sendMessage with the returned key.
+  chatAudioUploadUrl: (id: string, contentType: string, sizeBytes: number) =>
+    call<{ uploadUrl: string; key: string }>(`/jobs/${id}/messages/audio-upload-url`, { method: 'POST', body: JSON.stringify({ contentType, sizeBytes }) }),
+  // Photos: get a presigned URL, PUT the image to it, then sendMessage with the returned key.
+  chatImageUploadUrl: (id: string, contentType: string, sizeBytes: number) =>
+    call<{ uploadUrl: string; key: string }>(`/jobs/${id}/messages/image-upload-url`, { method: 'POST', body: JSON.stringify({ contentType, sizeBytes }) }),
   reportMessage: (id: string, messageId: string, reason?: string) =>
     call<{ id: string }>(`/jobs/${id}/messages/${messageId}/report`, { method: 'POST', body: JSON.stringify(reason ? { reason } : {}) }),
   getAvailability: () => call<{ online: boolean }>(`/me/availability`),

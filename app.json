@@ -3,7 +3,7 @@
     "name": "Rydafirst",
     "slug": "rydafirst",
     "scheme": "rydafirst",
-    "version": "0.0.4",
+    "version": "0.0.6",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
@@ -61,6 +61,12 @@
         }
       ],
       "expo-web-browser",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Rydafirst uses your microphone so you can send voice notes to your rider or customer about the delivery."
+        }
+      ],
       [
         "expo-build-properties",
         {
