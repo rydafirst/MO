@@ -41,7 +41,7 @@ export function VendorScreen({ navigation }: NativeStackScreenProps<RootStack, '
 
   return (
     <Screen title="Your shop" onBack={() => navigation.goBack()}>
-      <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 160 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
         {vendor === undefined ? (
           <Mono style={{ color: t.mid }}>LOADING…</Mono>
         ) : vendor === null ? (

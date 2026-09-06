@@ -21,3 +21,22 @@ export function useAndroidKeyboardInset(): number {
   }, []);
   return height;
 }
+
+/**
+ * The on-screen keyboard's height on BOTH platforms (0 when closed). Use this to lift a bottom-pinned
+ * input (a chat composer) exactly above the keyboard on iOS AND Android — the single, reliable path.
+ * The screen MUST opt out of the shared KeyboardAvoidingView (`<Screen avoidKeyboard={false}>`), or the
+ * composer would be shifted twice. iOS uses the `will` events (fire with the keyboard animation, so the
+ * composer rises in sync); Android uses the `did` events (edge-to-edge windows don't emit `will`).
+ */
+export function useKeyboardInset(): number {
+  const [height, setHeight] = useState(0);
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvt, (e) => setHeight(e.endCoordinates?.height ?? 0));
+    const hide = Keyboard.addListener(hideEvt, () => setHeight(0));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+  return height;
+}

@@ -39,10 +39,13 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
   useEffect(() => { api.publicConfig().then((c) => setMarketplaceOn(c.marketplaceEnabled)).catch(() => {}); }, []);
   const [pickup, setPickup] = useState<Place | null>(null);
   const [locateSignal, setLocateSignal] = useState(0);
-  const [showLocPrompt, setShowLocPrompt] = useState(false);
-  // Prompt to turn on location on first open (like other delivery apps) so pickup can autofill.
+  // Ask the OS for location on open (no in-app card): requestForegroundPermissionsAsync shows the system
+  // prompt the first time and silently returns the stored decision afterwards, so this can run every mount
+  // without nagging. If granted, autofill the pickup from the current position.
   useEffect(() => {
-    Location.getForegroundPermissionsAsync().then((p) => { if (!p.granted) setShowLocPrompt(true); }).catch(() => {});
+    Location.requestForegroundPermissionsAsync()
+      .then((p) => { if (p.granted) setLocateSignal((n) => n + 1); })
+      .catch(() => {});
   }, []);
   const [dropoff, setDropoff] = useState<Place | null>(null);
   const [recipientName, setRecipientName] = useState('');
@@ -228,18 +231,9 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
           <RideComingSoon />
         ) : (
         <>
+        <Spacer h={14} />
         <MapPreview pickup={pickup} dropoff={dropoff} />
-
-        {showLocPrompt && (
-          <Card style={{ borderColor: t.ink, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Text style={{ fontSize: t.size.heading }}>📍</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: t.size.body, fontWeight: '700' }}>Turn on location</Text>
-              <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 2 }}>Autofill your pickup from where you are.</Text>
-            </View>
-            <View style={{ width: 96 }}><Button label="Enable" onPress={() => { setShowLocPrompt(false); setLocateSignal((n) => n + 1); }} /></View>
-          </Card>
-        )}
+        <Spacer h={14} />
 
         <View onLayout={(e) => { pickupY.current = e.nativeEvent.layout.y; }}>
           <AddressField label={isDelivery ? 'PICKUP' : 'FROM'} autoLocate={locateSignal} onFocus={() => scrollToField(pickupY)} onSelect={(p) => { setPickup(p); setQuote(null); }} />

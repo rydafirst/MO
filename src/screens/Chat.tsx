@@ -11,7 +11,7 @@ import { api, type ChatMessage } from '../api';
 import { getToken, getUserId } from '../lib/session';
 import { Button, Mono, Screen, useToast } from '../ui';
 import { t } from '../theme';
-import { useAndroidKeyboardInset } from '../lib/keyboard';
+import { useKeyboardInset } from '../lib/keyboard';
 
 const AUDIO_MIME = 'audio/m4a'; // HIGH_QUALITY preset records an m4a/AAC container on iOS and Android
 
@@ -78,7 +78,9 @@ export function ChatScreen({ route, navigation }: NativeStackScreenProps<RootSta
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null); // message being replied to, if any
   const [accepted, setAccepted] = useState<boolean | null>(null); // null = still loading
   const listRef = useRef<FlatList<ChatMessage>>(null);
-  const kbInset = useAndroidKeyboardInset(); // lifts the composer above the keyboard on Android
+  const kbInset = useKeyboardInset(); // lifts the composer above the keyboard on iOS + Android
+  // Keep the newest message visible above the composer when the keyboard opens.
+  useEffect(() => { if (kbInset > 0) requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true })); }, [kbInset]);
 
   // Voice notes: record with expo-audio, upload to the presigned URL, then send a message quoting the key.
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -250,12 +252,12 @@ export function ChatScreen({ route, navigation }: NativeStackScreenProps<RootSta
     );
   }
 
-  // No KeyboardAvoidingView here on purpose: the shared <Screen> already wraps its children in one
-  // (padding on iOS), and Android resizes the window (softwareKeyboardLayoutMode: "resize" in app.json)
-  // so the composer stays above the keyboard. A second nested KAV used to fight the outer one and left
-  // the input hidden behind the keyboard on Android — this keeps a single, correct avoidance path.
+  // Keyboard handling: opt OUT of Screen's KeyboardAvoidingView (avoidKeyboard={false}) and lift the
+  // composer ourselves by the real keyboard height (useKeyboardInset) on BOTH iOS and Android. This is
+  // the single reliable path for a bottom-pinned composer — Screen's padding-KAV alone left the input
+  // behind the keyboard on iOS, and Android edge-to-edge doesn't shrink the window.
   return (
-    <Screen title="Messages" onBack={() => navigation.goBack()}>
+    <Screen title="Messages" onBack={() => navigation.goBack()} avoidKeyboard={false}>
       <FlatList
         ref={listRef}
         style={{ flex: 1 }}

@@ -6,7 +6,7 @@ import { api, type SupportMessage, type SupportThread } from '../api';
 import { botFollowUps } from '../lib/supportBot';
 import { Button, Card, Mono, PressableScale, Screen, useToast } from '../ui';
 import { t } from '../theme';
-import { useAndroidKeyboardInset } from '../lib/keyboard';
+import { useKeyboardInset } from '../lib/keyboard';
 
 function formatTime(ms: number): string {
   try { return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
@@ -32,7 +32,9 @@ export function SupportChatScreen({ route, navigation }: NativeStackScreenProps<
   const [sending, setSending] = useState(false);
   const [now, setNow] = useState(Date.now());
   const listRef = useRef<FlatList<SupportMessage>>(null);
-  const kbInset = useAndroidKeyboardInset();
+  const kbInset = useKeyboardInset();
+  // Keep the newest message visible above the composer when the keyboard opens.
+  useEffect(() => { if (kbInset > 0) requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true })); }, [kbInset]);
 
   // Bootstrap: resolve which thread this screen is showing, then load its history.
   useEffect(() => {
@@ -149,7 +151,7 @@ export function SupportChatScreen({ route, navigation }: NativeStackScreenProps<
   })();
 
   return (
-    <Screen title="Support" onBack={() => navigation.goBack()}>
+    <Screen title="Support" onBack={() => navigation.goBack()} avoidKeyboard={false}>
       {banner}
       <FlatList
         ref={listRef}

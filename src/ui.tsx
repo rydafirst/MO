@@ -10,22 +10,29 @@ import { t } from './theme';
  *    taps on buttons still fire (so you can submit without dismissing first).
  *  - keyboardDismissMode="on-drag" dismisses when the user scrolls the form.
  */
-export function KeyboardScreen({ children, contentContainerStyle, offset = 0, scrollRef }: {
+export function KeyboardScreen({ children, contentContainerStyle, scrollRef }: {
   children: React.ReactNode; contentContainerStyle?: StyleProp<ViewStyle>; offset?: number;
   scrollRef?: React.RefObject<ScrollView | null>;
 }) {
+  // A SINGLE scroll container that keeps the focused field above the keyboard:
+  //  - iOS: automaticallyAdjustKeyboardInsets insets the scroll view for the keyboard and scrolls the
+  //    focused input into view automatically (no fragile KeyboardAvoidingView height math).
+  //  - Android: the manifest uses adjustResize (app.json softwareKeyboardLayoutMode:"resize"), so the
+  //    window shrinks and the focused input is brought into view.
+  // NEVER nest another ScrollView inside this — that breaks the keyboard avoidance (the inner list
+  // stays a fixed height and never lifts). Pass content as children with contentContainerStyle instead.
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={offset}>
-      <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={contentContainerStyle}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        showsVerticalScrollIndicator={false}
-      >
-        {children}
-      </ScrollView>
-    </KeyboardAvoidingView>
+    <ScrollView
+      ref={scrollRef}
+      style={{ flex: 1 }}
+      contentContainerStyle={contentContainerStyle}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+      showsVerticalScrollIndicator={false}
+    >
+      {children}
+    </ScrollView>
   );
 }
 
@@ -107,8 +114,12 @@ export function H1({ children }: { children: React.ReactNode }) {
 }
 
 /* ---------------- Layout primitives ---------------- */
-export function Screen({ title, onBack, children, scroll }: {
+export function Screen({ title, onBack, children, scroll, avoidKeyboard = true }: {
   title?: string; onBack?: () => void; children: React.ReactNode; scroll?: boolean;
+  // Screens with a bottom-pinned input (chat composers) set this false and lift the input themselves
+  // with useKeyboardInset — otherwise the shared KeyboardAvoidingView and the composer's own inset
+  // both move it and it double-shifts / mis-aligns. Everything else keeps the default avoidance.
+  avoidKeyboard?: boolean;
 }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bg2 }} edges={['top', 'left', 'right']}>
@@ -121,9 +132,13 @@ export function Screen({ title, onBack, children, scroll }: {
           <View style={us.back} />
         </View>
       )}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        {children}
-      </KeyboardAvoidingView>
+      {avoidKeyboard ? (
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          {children}
+        </KeyboardAvoidingView>
+      ) : (
+        <View style={{ flex: 1 }}>{children}</View>
+      )}
     </SafeAreaView>
   );
 }

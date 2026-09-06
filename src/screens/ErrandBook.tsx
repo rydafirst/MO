@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { api, naira, type GeoPoint, type Quote } from '../api';
@@ -73,8 +74,8 @@ export function ErrandBookTab({ navigation }: { navigation: AppNav }) {
   const feeMinor = quote?.amountMinor ?? 0;
 
   return (
-    <KeyboardScreen>
-      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 20, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+    <SafeAreaView style={{ flex: 1, backgroundColor: t.bg2 }} edges={['top', 'left', 'right']}>
+      <KeyboardScreen scrollRef={scrollRef} contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
         <AppHeader navigation={navigation} />
         <Spacer h={12} />
         <Text style={{ fontSize: t.size.title, fontWeight: '700', color: t.ink }}>Send an errand</Text>
@@ -111,8 +112,8 @@ export function ErrandBookTab({ navigation }: { navigation: AppNav }) {
             <Button label={busy ? 'Starting payment…' : `Pay ${naira(goodsMinor + feeMinor)}`} onPress={book} busy={busy} />
           </Card>
         )}
-      </ScrollView>
-    </KeyboardScreen>
+      </KeyboardScreen>
+    </SafeAreaView>
   );
 }
 
