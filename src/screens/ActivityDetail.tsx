@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
-import { api, naira, type Job, type JobTimings, type RiderSummary } from '../api';
+import { api, naira, riderJobPayout, type Job, type JobTimings, type RiderSummary } from '../api';
 import { getRole, getToken } from '../lib/session';
 import { Button, Card, Mono, Pill, Screen, Spacer, useToast } from '../ui';
 import { t } from '../theme';
@@ -27,6 +27,16 @@ export function ActivityDetailScreen({ route, navigation }: NativeStackScreenPro
   const [rider, setRider] = useState<RiderSummary | null>(null);
   const [isRider, setIsRider] = useState(false);
   const [timings, setTimings] = useState<JobTimings | null>(null);
+  const [reportingLate, setReportingLate] = useState(false);
+  const reportLate = async () => {
+    setReportingLate(true);
+    try {
+      const r = await api.reportLate(jobId);
+      toast(r.verdict === 'LATE' ? 'Reported — that delivery was late. Thank you.'
+        : r.verdict === 'ON_TIME' ? 'We checked the timing — this delivery was on time.'
+        : 'Reported — our team will review it.', 'success');
+    } catch (e) { toast((e as Error).message); } finally { setReportingLate(false); }
+  };
 
   useEffect(() => { getToken().then((tok) => setIsRider(getRole(tok) === 'RIDER')); }, []);
   useEffect(() => {
@@ -62,7 +72,17 @@ export function ActivityDetailScreen({ route, navigation }: NativeStackScreenPro
               <Row label="Return deposit (refundable)" value={naira(job.returnReserveMinor)} />
             </>
           ) : null}
-          <Row label="Amount" value={naira(job.amountMinor)} strong />
+          {isRider ? (
+            <Row label="You earn" value={naira(riderJobPayout(job))} strong />
+          ) : job.type === 'ERRAND' && job.errand ? (
+            <>
+              <Row label="Delivery fee" value={naira(job.errand.deliveryFeeMinor ?? Math.max(0, job.amountMinor - job.errand.goodsMinor))} />
+              <Row label="Item money (to the shop)" value={naira(job.errand.goodsMinor)} />
+              <Row label="Amount paid" value={naira(job.amountMinor)} strong />
+            </>
+          ) : (
+            <Row label="Amount" value={naira(job.amountMinor)} strong />
+          )}
         </Card>
 
         {!isRider && rider && (
@@ -91,6 +111,9 @@ export function ActivityDetailScreen({ route, navigation }: NativeStackScreenPro
         <Card>
           <Mono style={{ marginBottom: 10 }}>NEED HELP WITH THIS DELIVERY?</Mono>
           <Button label="Report an issue" variant="ghost" onPress={() => navigation.navigate('Dispute', { jobId })} />
+          {!isRider && (job.status === 'COMPLETED' || job.status === 'RELEASED') ? (
+            <><Spacer h={8} /><Button label={reportingLate ? 'Reporting…' : 'Report late delivery'} variant="ghost" onPress={reportLate} busy={reportingLate} /></>
+          ) : null}
           <Spacer h={8} />
           <Button label="Contact support" variant="ghost" onPress={contactSupport} />
         </Card>

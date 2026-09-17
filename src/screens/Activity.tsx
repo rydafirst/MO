@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { api, naira, riderNet, type Job } from '../api';
+import { api, naira, riderJobPayout, type Job } from '../api';
 import type { AppNav } from '../nav';
 import { TabIcon } from '../components/TabIcon';
 import { Card, H1, Mono, Pill, PressableScale } from '../ui';
@@ -101,7 +101,7 @@ export function ActivityTab({ navigation, role }: { navigation: AppNav; role: Ro
                   {new Date(j.createdAt).toLocaleString('en-NG', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                 </Mono>
                 {/* Riders see their take-home (net of the platform fee); customers see what they paid. */}
-                <Text style={{ fontFamily: t.mono, fontSize: t.size.small, fontWeight: '700', marginTop: 4 }}>{naira(isRider ? riderNet(j.amountMinor, j.platformFeeMinor) : j.amountMinor)}</Text>
+                <Text style={{ fontFamily: t.mono, fontSize: t.size.small, fontWeight: '700', marginTop: 4 }}>{naira(isRider ? riderJobPayout(j) : j.amountMinor)}</Text>
               </View>
               <Pill text={b.text} color={b.color} />
             </Card>

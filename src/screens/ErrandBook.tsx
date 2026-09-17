@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { FlatList, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
-import { api, naira, type GeoPoint, type Quote } from '../api';
+import { api, naira, type Bank, type GeoPoint, type Quote } from '../api';
 import type { AppNav } from '../nav';
 import { AddressField, type Place } from '../components/AddressField';
 import { AppHeader } from '../components/AppHeader';
@@ -25,6 +25,19 @@ export function ErrandBookTab({ navigation }: { navigation: AppNav }) {
   const [amount, setAmount] = useState(''); // naira, whole numbers
   const [quote, setQuote] = useState<Quote | null>(null);
   const [busy, setBusy] = useState(false);
+  // OPTIONAL: if the customer already has the shop's account (e.g. they called the shop) they can enter it
+  // now. It's name-matched server-side, and paid only after the rider reaches the shop.
+  const [banks, setBanks] = useState<Bank[]>([]);
+  const [bankCode, setBankCode] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [bankPickerOpen, setBankPickerOpen] = useState(false);
+  const [bankQuery, setBankQuery] = useState('');
+  useEffect(() => { api.banks().then(setBanks).catch(() => {}); }, []);
+  const filteredBanks = useMemo(() => {
+    const q = bankQuery.trim().toLowerCase();
+    return q ? banks.filter((b) => b.name.toLowerCase().includes(q)) : banks;
+  }, [banks, bankQuery]);
 
   const goodsMinor = Math.round((Number(amount.replace(/[^\d.]/g, '')) || 0) * 100);
 
@@ -53,6 +66,7 @@ export function ErrandBookTab({ navigation }: { navigation: AppNav }) {
         ...(shop.area ? { storeArea: shop.area } : {}),
         ...(dropoff.label ? { dropoffAddress: dropoff.label } : {}),
         ...(dropoff.area ? { dropoffArea: dropoff.area } : {}),
+        ...(bankCode && accountNumber.length >= 10 ? { bankCode, accountNumber } : {}),
       });
       const link = job.paymentLink;
       if (link && /^https?:\/\//i.test(link)) {
@@ -99,6 +113,19 @@ export function ErrandBookTab({ navigation }: { navigation: AppNav }) {
           Enter what the items cost. If it&apos;s more at the shop, your rider will ask and you can top up in the app.
         </Text>
 
+        {/* OPTIONAL: pre-enter the shop's account if the customer already has it (name-matched server-side). */}
+        <Field label="Shop account — optional (if you already have it)">
+          <Pressable onPress={() => setBankPickerOpen(true)}
+            style={{ borderWidth: 1, borderColor: t.line, borderRadius: t.radius.md, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 8, backgroundColor: t.bg }}>
+            <Text style={{ fontSize: t.size.body, color: bankName ? t.ink : t.mid }}>{bankName || 'Select the shop’s bank'}</Text>
+          </Pressable>
+          <Input placeholder="Shop account number (10 digits)" keyboardType="number-pad" maxLength={10} value={accountNumber}
+            onChangeText={(vv) => { setAccountNumber(vv.replace(/\D/g, '').slice(0, 10)); setQuote(null); }} />
+        </Field>
+        <Text style={{ fontSize: t.size.caption, color: t.ink2, marginTop: -4, marginBottom: 12, lineHeight: 17 }}>
+          Leave this blank if you don’t have it — your rider will collect it at the shop. Either way we verify the name matches before paying.
+        </Text>
+
         {!quote ? (
           <Button label={busy ? 'Getting price…' : 'Get delivery price'} onPress={getQuote} busy={busy} />
         ) : (
@@ -112,6 +139,24 @@ export function ErrandBookTab({ navigation }: { navigation: AppNav }) {
             <Button label={busy ? 'Starting payment…' : `Pay ${naira(goodsMinor + feeMinor)}`} onPress={book} busy={busy} />
           </Card>
         )}
+
+        <Modal visible={bankPickerOpen} animationType="slide" onRequestClose={() => setBankPickerOpen(false)}>
+          <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: 56, paddingHorizontal: 20 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={{ fontSize: t.size.heading, fontWeight: '700', color: t.ink }}>Choose the shop’s bank</Text>
+              <Pressable onPress={() => { setBankPickerOpen(false); setBankQuery(''); }}><Mono style={{ color: t.ink2 }}>CLOSE</Mono></Pressable>
+            </View>
+            <TextInput placeholder="Search banks…" placeholderTextColor={t.mid} value={bankQuery} onChangeText={setBankQuery} autoFocus
+              style={{ borderWidth: 1, borderColor: t.line, borderRadius: t.radius.md, paddingVertical: 12, paddingHorizontal: 14, fontSize: t.size.body, color: t.ink, marginBottom: 8 }} />
+            <FlatList data={filteredBanks} keyExtractor={(b) => b.code} keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <Pressable onPress={() => { setBankCode(item.code); setBankName(item.name); setQuote(null); setBankPickerOpen(false); setBankQuery(''); }}
+                  style={{ paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: t.line2 }}>
+                  <Text style={{ fontSize: t.size.body, color: t.ink }}>{item.name}</Text>
+                </Pressable>
+              )} />
+          </View>
+        </Modal>
       </KeyboardScreen>
     </SafeAreaView>
   );

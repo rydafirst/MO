@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
-import { api, naira, riderNet, type AvailableJob, type Job } from '../api';
+import { api, naira, riderJobPayout, type AvailableJob, type Job } from '../api';
 import type { AppNav } from '../nav';
 import { AppHeader } from '../components/AppHeader';
 import { JobsMap, type JobPin } from '../components/JobsMap';
@@ -116,7 +116,7 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
       {activeJob && (
         <Card style={{ borderColor: t.ink, marginBottom: 16 }}>
           <Mono>YOU HAVE AN ACTIVE DELIVERY</Mono>
-          <Text style={{ fontSize: t.size.body, fontWeight: '700', marginTop: 4 }}>{naira(riderNet(activeJob.amountMinor, activeJob.platformFeeMinor))} · {activeJob.status.replace(/_/g, ' ').toLowerCase()}</Text>
+          <Text style={{ fontSize: t.size.body, fontWeight: '700', marginTop: 4 }}>{naira(riderJobPayout(activeJob))} · {activeJob.status.replace(/_/g, ' ').toLowerCase()}</Text>
           <Spacer h={10} />
           <Button label="Resume delivery" onPress={() => navigation.navigate('RiderJob', { jobId: activeJob.id })} />
         </Card>

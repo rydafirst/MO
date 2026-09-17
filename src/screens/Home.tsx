@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Location from 'expo-location';
@@ -59,7 +59,6 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
   const [extraStops, setExtraStops] = useState<StopDraft[]>([]);
   // After a successful booking with extra stops, the created-job response returns each stop's
   // single-use code ONCE — shown here so the customer can share them before we move to tracking.
-  const [stopCodes, setStopCodes] = useState<{ jobId: string; codes: string[] } | null>(null);
   const addStop = () => {
     if (extraStops.length >= MAX_EXTRA_STOPS) return;
     setExtraStops((s) => [...s, { place: null, recipientName: '', recipientPhone: '', item: '' }]);
@@ -151,13 +150,11 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
         });
         try { await WebBrowser.openBrowserAsync(link); } finally { sub.remove(); }
       }
-      // #4 MULTI-STOP: surface each extra stop's single-use code once (returned only here) so the
-      // customer can share them, then continue to tracking. Single-stop bookings go straight through.
-      if (job.extraStopCodes && job.extraStopCodes.length) {
-        setStopCodes({ jobId: job.id, codes: job.extraStopCodes });
-      } else {
-        navigation.navigate('Track', { jobId: job.id });
-      }
+      // #4 MULTI-STOP: we do NOT show the booking-time stop codes anymore. The customer reveals each
+      // stop's code on the Track screen when the rider reaches that stop — and revealing MINTS A FRESH
+      // code that invalidates this booking-time one, so showing it here only causes confusion (the
+      // popped-up code would no longer be the valid one). Go straight to tracking for every booking.
+      navigation.navigate('Track', { jobId: job.id });
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };
 
@@ -333,27 +330,10 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
         )}
       </KeyboardScreen>
 
-      {/* #4 MULTI-STOP: the created-job response returns each extra stop's single-use code exactly once.
-          Show them here so the customer can share each with the matching recipient, then continue to
-          tracking (where the primary drop-off code is revealed as usual). */}
-      <Modal visible={!!stopCodes} transparent animationType="slide" onRequestClose={() => { const id = stopCodes?.jobId; setStopCodes(null); if (id) navigation.navigate('Track', { jobId: id }); }}>
-        <View style={ms.overlay}>
-          <View style={ms.sheet}>
-            <Text style={{ fontSize: t.size.subtitle, fontWeight: '700' }}>Your stop codes</Text>
-            <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 4, marginBottom: 14, lineHeight: 19 }}>
-              Share each code with the matching recipient — the rider needs it to complete that drop-off. Your primary drop-off code is on the tracking screen.
-            </Text>
-            {(stopCodes?.codes ?? []).map((c, i) => (
-              <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: t.line2 }}>
-                <Mono style={{ color: t.ink }}>STOP {i + 2}</Mono>
-                <Text style={{ fontFamily: t.mono, fontSize: t.size.dataLg, fontWeight: '700', letterSpacing: 6, color: t.ink }}>{c}</Text>
-              </View>
-            ))}
-            <Spacer h={16} />
-            <Button label="Continue to tracking" onPress={() => { const id = stopCodes?.jobId; setStopCodes(null); if (id) navigation.navigate('Track', { jobId: id }); }} />
-          </View>
-        </View>
-      </Modal>
+      {/* #4 MULTI-STOP: the booking-time stop-codes sheet was REMOVED. Revealing a stop code on the
+          Track screen mints a fresh single-use code and invalidates any earlier one, so a code shown
+          here at booking would already be stale by the time the rider reaches that stop. The customer
+          now reveals each stop's code on the Track screen at the moment they hand it to the rider. */}
 
       {/* #0 DIRECT DELIVERY: the "receiver unavailable" explainer sheet is disabled for launch.
       {/* Explainer sheet for the "receiver unavailable" choice, shown on first Get quote.

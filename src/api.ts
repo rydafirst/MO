@@ -15,6 +15,7 @@ export interface ErrandDetails {
   shoppingList: string;
   store?: { name?: string; area?: string; address?: string };
   vendorAccount?: { bankCode: string; accountNumber: string; accountName: string };
+  accountByCustomer?: boolean;    // the customer supplied the shop account at booking
   vendorApproved?: boolean;
   vendorPaidAt?: number;
   deliveryFeeMinor?: number;      // fixed trip fee — top-ups grow only the goods, never this
@@ -93,6 +94,17 @@ export interface AvailableJob {
 /** A rider's take-home for a job: the customer's charge minus the platform fee. Never show gross to riders. */
 export function riderNet(amountMinor: number, platformFeeMinor?: number): number {
   return Math.max(0, amountMinor - (platformFeeMinor ?? 0));
+}
+/**
+ * A rider's take-home for a specific job. Same as riderNet for a delivery, but for an ERRAND the
+ * charge (amountMinor) includes the customer's ITEM money, which goes to the vendor — the rider earns
+ * only the DELIVERY fee (net of the platform fee). Use this wherever a rider is shown their earnings.
+ */
+export function riderJobPayout(job: Job): number {
+  const grossFare = job.type === 'ERRAND' && job.errand
+    ? (job.errand.deliveryFeeMinor ?? Math.max(0, job.amountMinor - job.errand.goodsMinor))
+    : job.amountMinor;
+  return Math.max(0, grossFare - (job.platformFeeMinor ?? 0));
 }
 export interface Account { bankCode: string; accountName: string; accountNumberMasked: string; type: 'refund' | 'payout' }
 export interface Bank { code: string; name: string }
@@ -181,7 +193,7 @@ export const api = {
   createErrand: (body: {
     quoteToken: string; goodsMinor: number; shoppingList: string;
     storeName?: string; storeArea?: string; storeAddress?: string; dropoffAddress?: string; dropoffArea?: string;
-    customerName?: string; returnUrl?: string;
+    customerName?: string; returnUrl?: string; bankCode?: string; accountNumber?: string;
   }) => call<Job & { paymentLink?: string }>(`/jobs/errand`, { method: 'POST', headers: { 'Idempotency-Key': uuid() }, body: JSON.stringify(body) }),
   // Rider captures the vendor's business account at the store; returns the resolved name + match.
   errandVendorAccount: (id: string, bankCode: string, accountNumber: string) =>
@@ -197,6 +209,8 @@ export const api = {
     call<{ funded: boolean; goodsMinor: number }>(`/jobs/${id}/errand/confirm-topup`, { method: 'POST', body: JSON.stringify({ transactionId }) }),
   // ERRAND: proof-of-payment receipt (shown to the vendor, kept by the customer). Available once paid.
   errandReceipt: (id: string) => call<ErrandReceipt>(`/jobs/${id}/errand/receipt`),
+  // Report a late delivery — auto-judged against a traffic-aware ETA server-side.
+  reportLate: (id: string) => call<{ reportId: string; verdict: string; status: string }>(`/jobs/${id}/report-late`, { method: 'POST' }),
   // ---- Vendors (marketplace) ----
   myVendor: () => call<Vendor | null>(`/vendors/me`),
   registerVendor: (body: { businessName: string; rcNumber?: string; category?: string; area?: string; description?: string }) =>

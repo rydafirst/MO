@@ -307,16 +307,23 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
                 <Button label="View payment receipt" variant="ghost" onPress={() => setShowReceipt(true)} />
               </View>
             ) : job.errand.vendorAccount ? (
-              <View style={{ marginTop: 10 }}>
-                <Text style={{ fontSize: t.size.small, color: t.ink2, marginBottom: 8, lineHeight: 19 }}>
-                  Your rider is at the shop. Confirm the shop&apos;s account below, then approve to pay {naira(job.errand.goodsMinor)}.
-                </Text>
-                <View style={{ borderWidth: 1, borderColor: t.line, borderRadius: 8, padding: 12, marginBottom: 10 }}>
-                  <Mono style={{ fontSize: t.size.caption, color: t.ink2 }}>SHOP ACCOUNT NAME</Mono>
-                  <Text style={{ fontSize: t.size.body, fontWeight: '700', marginTop: 2 }}>{job.errand.vendorAccount.accountName}</Text>
+              (job.status === 'CREATED' || job.status === 'FUNDED' || job.status === 'SEARCHING' || job.status === 'ACCEPTED' || job.status === 'EN_ROUTE_PICKUP') ? (
+                // Arrival gate: the approve/pay button only appears once the rider reaches the shop.
+                <Mono style={{ color: t.ink2, marginTop: 8 }}>
+                  {job.errand.accountByCustomer ? 'SHOP ACCOUNT SAVED — ' : ''}YOUR RIDER IS ON THE WAY. YOU CAN APPROVE THE PAYMENT ONCE THEY REACH THE SHOP.
+                </Mono>
+              ) : (
+                <View style={{ marginTop: 10 }}>
+                  <Text style={{ fontSize: t.size.small, color: t.ink2, marginBottom: 8, lineHeight: 19 }}>
+                    Your rider is at the shop. Confirm the shop&apos;s account below, then approve to pay {naira(job.errand.goodsMinor)}.
+                  </Text>
+                  <View style={{ borderWidth: 1, borderColor: t.line, borderRadius: 8, padding: 12, marginBottom: 10 }}>
+                    <Mono style={{ fontSize: t.size.caption, color: t.ink2 }}>SHOP ACCOUNT NAME</Mono>
+                    <Text style={{ fontSize: t.size.body, fontWeight: '700', marginTop: 2 }}>{job.errand.vendorAccount.accountName}</Text>
+                  </View>
+                  <Button label={approvingVendor ? 'Approving…' : `Approve & pay ${naira(job.errand.goodsMinor)}`} onPress={approveVendor} busy={approvingVendor} />
                 </View>
-                <Button label={approvingVendor ? 'Approving…' : `Approve & pay ${naira(job.errand.goodsMinor)}`} onPress={approveVendor} busy={approvingVendor} />
-              </View>
+              )
             ) : (
               <Mono style={{ color: t.ink2, marginTop: 8 }}>YOUR RIDER WILL ENTER THE SHOP&apos;S ACCOUNT WHEN THEY ARRIVE</Mono>
             )}

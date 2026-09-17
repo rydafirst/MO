@@ -383,7 +383,14 @@ export function RiderJobScreen({ route, navigation }: NativeStackScreenProps<Roo
                 <Button label="Show payment receipt to shop" variant="ghost" onPress={() => setShowReceipt(true)} />
               </View>
             ) : job.errand.vendorAccount ? (
-              <Mono style={{ color: t.ink2, marginTop: 8 }}>ACCOUNT SENT — WAITING FOR THE CUSTOMER TO APPROVE PAYMENT</Mono>
+              <Mono style={{ color: t.ink2, marginTop: 8 }}>
+                {job.errand.accountByCustomer
+                  ? 'THE CUSTOMER PROVIDED THE SHOP ACCOUNT — WAITING FOR THE PAYMENT TO BE APPROVED'
+                  : 'ACCOUNT SENT — WAITING FOR THE CUSTOMER TO APPROVE PAYMENT'}
+              </Mono>
+            ) : (job.status === 'ACCEPTED' || job.status === 'EN_ROUTE_PICKUP') ? (
+              // Arrival gate: the account form only appears once the rider is AT the shop.
+              <Mono style={{ color: t.ink2, marginTop: 8 }}>HEAD TO THE SHOP — THE ACCOUNT FORM OPENS WHEN YOU ARRIVE</Mono>
             ) : (
               <View style={{ marginTop: 10 }}>
                 <VendorAccountCapture jobId={jobId} onCaptured={() => { api.getJob(jobId).then(setJob).catch(() => {}); }} />

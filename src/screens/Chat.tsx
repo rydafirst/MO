@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { uploadAsync, getInfoAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import { useAudioRecorder, useAudioPlayer, useAudioPlayerStatus, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync } from 'expo-audio';
@@ -88,6 +88,7 @@ export function ChatScreen({ route, navigation }: NativeStackScreenProps<RootSta
   const [recSecs, setRecSecs] = useState(0);
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null); // full-screen image viewer (tap a photo)
   const recStartRef = useRef(0);
   const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => () => { if (recTimerRef.current) clearInterval(recTimerRef.current); }, []);
@@ -301,7 +302,10 @@ export function ChatScreen({ route, navigation }: NativeStackScreenProps<RootSta
                   <VoiceBubble url={item.audioUrl} durationMs={item.audioDurationMs} mine={mine} />
                 ) : null}
                 {item.imageUrl ? (
-                  <Image source={{ uri: item.imageUrl }} style={{ width: 200, height: 200, borderRadius: 10, backgroundColor: t.bg2 }} resizeMode="cover" />
+                  // Tap to open the photo full-screen; long-press still bubbles up for reply/report.
+                  <Pressable onPress={() => setViewerUrl(item.imageUrl!)} onLongPress={() => onLongPress(item)} delayLongPress={300} accessibilityLabel="Open photo">
+                    <Image source={{ uri: item.imageUrl }} style={{ width: 200, height: 200, borderRadius: 10, backgroundColor: t.bg2 }} resizeMode="cover" />
+                  </Pressable>
                 ) : null}
                 {item.body ? (
                   <Text style={{ color: mine ? t.onDark : t.ink, fontSize: t.size.body, lineHeight: 22, marginTop: (item.audioUrl || item.imageUrl) ? 6 : 0 }}>{item.body}</Text>
@@ -368,6 +372,16 @@ export function ChatScreen({ route, navigation }: NativeStackScreenProps<RootSta
           )}
         </View>
       )}
+
+      {/* Full-screen photo viewer — tap a chat photo (or receipt) to open it here; tap anywhere to close. */}
+      <Modal visible={!!viewerUrl} transparent animationType="fade" onRequestClose={() => setViewerUrl(null)}>
+        <Pressable onPress={() => setViewerUrl(null)}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center' }}>
+          {viewerUrl ? <Image source={{ uri: viewerUrl }} style={{ width: '100%', height: '80%' }} resizeMode="contain" /> : null}
+          <Text style={{ position: 'absolute', top: 52, right: 22, color: '#fff', fontSize: 30, lineHeight: 30 }}>×</Text>
+          <Mono style={{ position: 'absolute', bottom: 44, color: 'rgba(255,255,255,0.7)', fontSize: t.size.caption }}>TAP TO CLOSE</Mono>
+        </Pressable>
+      </Modal>
     </Screen>
   );
 }
