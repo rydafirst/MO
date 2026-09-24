@@ -12,7 +12,7 @@ const WV = WebView as unknown as React.ComponentType<Record<string, unknown>>;
 export interface LatLng { lat: number; lng: number }
 
 /** Emoji marker for the rider by vehicle class — legible at small size, no icon assets to bundle. */
-const VEHICLE_GLYPH: Record<VehicleTrack, string> = { BIKE: '🏍️', CAR: '🚗', KEKE: '🛺' };
+const VEHICLE_GLYPH: Record<VehicleTrack, string> = { BIKE: '🏍️', CAR: '🚗', KEKE: '🛺', BICYCLE: '🚲' };
 
 /** "3.2 km" / "450 m" and "12 min" for the route summary. */
 function fmtDistance(m: number): string {

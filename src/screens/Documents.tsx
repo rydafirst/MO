@@ -9,6 +9,7 @@ import { Button, Card, Field, Input, Mono, Pill, PressableScale, Screen, Spacer,
 import { t } from '../theme';
 
 const TRACKS: { value: VehicleTrack; label: string; hint: string }[] = [
+  { value: 'BICYCLE', label: 'Bicycle', hint: 'Pedal bike · lightest documents' },
   { value: 'BIKE', label: 'Motorcycle', hint: 'Dispatch bike' },
   { value: 'CAR', label: 'Car / Van', hint: 'Larger loads' },
   { value: 'KEKE', label: 'Keke (tricycle)', hint: 'Mid-size loads' },
@@ -113,6 +114,10 @@ export function DocumentsScreen({ navigation }: NativeStackScreenProps<RootStack
         )}
 
         {data.track && <RiderDetailsCard />}
+
+        {/* Structured guarantor details — only when a guarantor is required (the signed-note PHOTO is
+            uploaded as the "Guarantor's signed note" row in the document list below). */}
+        {data.track && data.items.some((i) => i.type === 'GUARANTOR') && <GuarantorCard />}
 
         {data.track && (
           <>
@@ -220,6 +225,59 @@ function RiderDetailsCard() {
       </Field>
       <Spacer h={4} />
       <Button label="Save details" onPress={save} busy={saving} />
+    </Card>
+  );
+}
+
+// Guarantor's typed details. The rider fills who is vouching for them; they also upload a photo of a
+// short note that guarantor signs (the "Guarantor's signed note" document row). Admin sees both.
+function GuarantorCard() {
+  const toast = useToast();
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [relationship, setRelationship] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.riderProfile().then((p) => {
+      setName(p.guarantorName ?? '');
+      setPhone(p.guarantorPhone ?? '');
+      setAddress(p.guarantorAddress ?? '');
+      setRelationship(p.guarantorRelationship ?? '');
+      setLoaded(true);
+    }).catch(() => setLoaded(true));
+  }, []);
+
+  const save = async () => {
+    if (!name.trim() || phone.trim().length < 7) { toast('Enter your guarantor’s name and phone number'); return; }
+    setSaving(true);
+    try {
+      await api.updateRiderProfile({
+        guarantorName: name.trim(), guarantorPhone: phone.trim(),
+        ...(address.trim() ? { guarantorAddress: address.trim() } : {}),
+        ...(relationship.trim() ? { guarantorRelationship: relationship.trim() } : {}),
+      });
+      toast('Guarantor details saved');
+    } catch (e) { toast((e as Error).message); } finally { setSaving(false); }
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <Card style={{ marginBottom: 16, borderColor: t.line }}>
+      <Mono style={{ marginBottom: 4 }}>YOUR GUARANTOR</Mono>
+      <Text style={{ fontSize: t.size.small, color: t.ink2, marginBottom: 10, lineHeight: 18 }}>
+        Someone who vouches for you. Fill their details here, then upload a photo of a short note they sign
+        (the “Guarantor’s signed note” item below).
+      </Text>
+      <Field label="Guarantor’s full name"><Input value={name} onChangeText={setName} placeholder="e.g. Musa Ibrahim" autoCapitalize="words" /></Field>
+      <Field label="Guarantor’s phone"><Input value={phone} onChangeText={setPhone} placeholder="e.g. 0803 000 0000" keyboardType="phone-pad" /></Field>
+      <Field label="Guarantor’s address"><Input value={address} onChangeText={setAddress} placeholder="Street, area, city" /></Field>
+      <Field label="Relationship to you"><Input value={relationship} onChangeText={setRelationship} placeholder="e.g. Uncle, employer, friend" autoCapitalize="words" /></Field>
+      <Spacer h={4} />
+      <Button label="Save guarantor" onPress={save} busy={saving} />
     </Card>
   );
 }

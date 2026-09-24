@@ -109,7 +109,7 @@ export function riderJobPayout(job: Job): number {
 export interface Account { bankCode: string; accountName: string; accountNumberMasked: string; type: 'refund' | 'payout' }
 export interface Bank { code: string; name: string }
 export interface Notification { id: string; jobId?: string; title: string; body: string; createdAt: number; read: boolean }
-export type VehicleTrack = 'BIKE' | 'CAR' | 'KEKE';
+export type VehicleTrack = 'BIKE' | 'CAR' | 'KEKE' | 'BICYCLE';
 export type DocType =
   | 'PROFILE_PHOTO' | 'GOV_ID' | 'LICENSE' | 'ADDRESS_PROOF' | 'VEHICLE_REG' | 'PROOF_OF_OWNERSHIP'
   | 'ROADWORTHINESS' | 'INSURANCE' | 'VEHICLE_PHOTO' | 'GUARANTOR' | 'LASRRA' | 'LASDRI' | 'HACKNEY_PERMIT' | 'KEKE_PERMIT';
@@ -119,7 +119,7 @@ export interface ChecklistItem { type: DocType; label: string; required: boolean
 export interface DocChecklist { track: VehicleTrack | null; onboarding: DocOnboarding; items: ChecklistItem[] }
 export type VehicleColor = 'BLACK' | 'WHITE' | 'SILVER' | 'GREY' | 'RED' | 'BLUE' | 'GREEN' | 'GOLD' | 'OTHER';
 export const VEHICLE_COLORS: VehicleColor[] = ['BLACK', 'WHITE', 'SILVER', 'GREY', 'RED', 'BLUE', 'GREEN', 'GOLD', 'OTHER'];
-export interface RiderProfile { track: VehicleTrack | null; legalName?: string; nameVerified: boolean; vehiclePlate?: string; vehicleColor?: VehicleColor }
+export interface RiderProfile { track: VehicleTrack | null; legalName?: string; nameVerified: boolean; vehiclePlate?: string; vehicleColor?: VehicleColor; guarantorName?: string; guarantorPhone?: string; guarantorAddress?: string; guarantorRelationship?: string }
 // `phone` is present only while the job is in flight, and only for the counterparty. `phoneMasked`
 // says whether it is a proxy number — dial whatever is given and don't cache it.
 // `callMode`: 'proxy' means masked in-app calling is live — request a call (server rings you) and no
@@ -325,7 +325,7 @@ export const api = {
   requestDocumentUpload: (body: { type: DocType; contentType: string; issuedAt?: number; expiresAt?: number }) =>
     call<{ documentId: string; uploadUrl: string }>(`/me/documents/upload-url`, { method: 'POST', body: JSON.stringify(body) }),
   riderProfile: () => call<RiderProfile>(`/me/documents/profile`),
-  updateRiderProfile: (body: { legalName?: string; vehiclePlate?: string; vehicleColor?: VehicleColor }) =>
+  updateRiderProfile: (body: { legalName?: string; vehiclePlate?: string; vehicleColor?: VehicleColor; guarantorName?: string; guarantorPhone?: string; guarantorAddress?: string; guarantorRelationship?: string }) =>
     call<RiderProfile>(`/me/documents/profile`, { method: 'PUT', body: JSON.stringify(body) }),
   jobRider: (id: string) => call<{ rider: RiderSummary | null }>(`/jobs/${id}/rider`),
   jobTimings: (id: string) => call<JobTimings>(`/jobs/${id}/timings`),

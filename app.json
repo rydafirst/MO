@@ -3,7 +3,7 @@
     "name": "Rydafirst",
     "slug": "rydafirst",
     "scheme": "rydafirst",
-    "version": "0.0.7",
+    "version": "0.0.8",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",

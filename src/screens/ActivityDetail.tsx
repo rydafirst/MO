@@ -8,7 +8,7 @@ import { Button, Card, Mono, Pill, Screen, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
 function vehicleLabel(track: string | null): string {
-  return track === 'BIKE' ? 'Motorcycle' : track === 'CAR' ? 'Car / Van' : track === 'KEKE' ? 'Keke' : 'Vehicle';
+  return track === 'BIKE' ? 'Motorcycle' : track === 'CAR' ? 'Car / Van' : track === 'KEKE' ? 'Keke' : track === 'BICYCLE' ? 'Bicycle' : 'Vehicle';
 }
 function statusLabel(s: string): { text: string; color: string } {
   switch (s) {

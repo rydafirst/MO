@@ -57,7 +57,7 @@ function label(status: string): { text: string; color: string } {
 }
 
 function vehicleLabel(track: string | null): string {
-  return track === 'BIKE' ? 'Motorcycle' : track === 'CAR' ? 'Car / Van' : track === 'KEKE' ? 'Keke' : 'Vehicle';
+  return track === 'BIKE' ? 'Motorcycle' : track === 'CAR' ? 'Car / Van' : track === 'KEKE' ? 'Keke' : track === 'BICYCLE' ? 'Bicycle' : 'Vehicle';
 }
 
 export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootStack, 'Track'>) {
