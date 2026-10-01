@@ -38,6 +38,7 @@ export function DocumentsScreen({ navigation }: NativeStackScreenProps<RootStack
   const [data, setData] = useState<DocChecklist | null>(null);
   const [busyType, setBusyType] = useState<DocType | null>(null);
   const [expiryFor, setExpiryFor] = useState<ChecklistItem | null>(null); // item awaiting an expiry date
+  const [changingTrack, setChangingTrack] = useState(false); // re-open the vehicle picker after one is chosen
 
   const load = useCallback(async () => {
     try { setData(await api.documentsChecklist()); } catch (e) { toast((e as Error).message); }
@@ -45,7 +46,7 @@ export function DocumentsScreen({ navigation }: NativeStackScreenProps<RootStack
   useEffect(() => { load(); }, [load]);
 
   const chooseTrack = async (track: VehicleTrack) => {
-    try { await api.setVehicleTrack(track); await load(); }
+    try { await api.setVehicleTrack(track); setChangingTrack(false); await load(); }
     catch (e) { toast((e as Error).message); }
   };
 
@@ -96,30 +97,55 @@ export function DocumentsScreen({ navigation }: NativeStackScreenProps<RootStack
           <Text style={{ fontSize: t.size.body, fontWeight: '700', marginTop: 6, color: t.ink }}>{ONBOARDING_MSG[data.onboarding]}</Text>
         </Card>
 
-        {!data.track && (
+        {(!data.track || changingTrack) && (
           <>
-            <Mono style={{ marginBottom: 8 }}>WHAT DO YOU DELIVER WITH?</Mono>
-            {TRACKS.map((tr) => (
-              <PressableScale key={tr.value} onPress={() => chooseTrack(tr.value)} style={{ marginBottom: 10 }}>
-                <Card style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View>
-                    <Text style={{ fontSize: t.size.body, fontWeight: '700', color: t.ink }}>{tr.label}</Text>
-                    <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 2 }}>{tr.hint}</Text>
-                  </View>
-                  <Text style={{ fontSize: t.size.heading, color: t.ink2 }}>›</Text>
-                </Card>
-              </PressableScale>
-            ))}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Mono>WHAT DO YOU DELIVER WITH?</Mono>
+              {changingTrack && (
+                <PressableScale onPress={() => setChangingTrack(false)}><Mono style={{ color: t.ink2 }}>CANCEL</Mono></PressableScale>
+              )}
+            </View>
+            {TRACKS.map((tr) => {
+              const current = data.track === tr.value;
+              return (
+                <PressableScale key={tr.value} onPress={() => chooseTrack(tr.value)} style={{ marginBottom: 10 }}>
+                  <Card style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderColor: current ? t.ink : t.line }}>
+                    <View>
+                      <Text style={{ fontSize: t.size.body, fontWeight: '700', color: t.ink }}>{tr.label}</Text>
+                      <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 2 }}>{tr.hint}</Text>
+                    </View>
+                    <Text style={{ fontSize: t.size.heading, color: t.ink2 }}>{current ? '✓' : '›'}</Text>
+                  </Card>
+                </PressableScale>
+              );
+            })}
           </>
         )}
 
-        {data.track && <RiderDetailsCard />}
+        {/* Current vehicle + a way to change it (the picker above re-opens on Change). */}
+        {data.track && !changingTrack && (
+          <Card style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <View>
+              <Mono style={{ color: t.ink2, fontSize: t.size.caption }}>YOUR VEHICLE</Mono>
+              <Text style={{ fontSize: t.size.body, fontWeight: '700', color: t.ink, marginTop: 3 }}>
+                {TRACKS.find((x) => x.value === data.track)?.label ?? data.track}
+              </Text>
+            </View>
+            <PressableScale onPress={() => setChangingTrack(true)}>
+              <View style={{ borderWidth: 1, borderColor: t.line, borderRadius: t.radius.md, paddingVertical: 8, paddingHorizontal: 14 }}>
+                <Mono style={{ color: t.ink }}>CHANGE</Mono>
+              </View>
+            </PressableScale>
+          </Card>
+        )}
+
+        {data.track && !changingTrack && <RiderDetailsCard />}
 
         {/* Structured guarantor details — only when a guarantor is required (the signed-note PHOTO is
             uploaded as the "Guarantor's signed note" row in the document list below). */}
-        {data.track && data.items.some((i) => i.type === 'GUARANTOR') && <GuarantorCard />}
+        {data.track && !changingTrack && data.items.some((i) => i.type === 'GUARANTOR') && <GuarantorCard />}
 
-        {data.track && (
+        {data.track && !changingTrack && (
           <>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <Mono>REQUIRED DOCUMENTS</Mono>
@@ -207,7 +233,7 @@ function RiderDetailsCard() {
           <Pill text={verified ? 'Name verified' : 'Pending check'} color={verified ? t.success : t.warning} />
         )}
       </View>
-      <Field label="Full name (as on your ID)"><Input value={legalName} onChangeText={setLegalName} placeholder="e.g. Tolu Olonibua" autoCapitalize="words" /></Field>
+      <Field label="Full name (as on your ID)"><Input value={legalName} onChangeText={setLegalName} placeholder="e.g. Ada Okeke" autoCapitalize="words" /></Field>
       <Field label="Vehicle plate number"><Input value={plate} onChangeText={setPlate} placeholder="e.g. ABC 123 DE" autoCapitalize="characters" /></Field>
       <Field label="Vehicle colour">
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
