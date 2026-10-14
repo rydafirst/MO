@@ -308,7 +308,7 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
             <Card style={{ marginTop: 16 }}>
               <Row label="Base" value={naira(quote.breakdown.baseMinor)} />
               <Row label="Distance" value={naira(quote.breakdown.distanceMinor)} />
-              <Row label="Time" value={naira(quote.breakdown.timeMinor)} />
+              {quote.breakdown.timeMinor > 0 ? <Row label="Time" value={naira(quote.breakdown.timeMinor)} /> : null}
               <Row label="Platform fee" value={naira(quote.breakdown.platformFeeMinor)} />
               {/* #0 DIRECT DELIVERY: return-deposit row removed. */}
               {/* {returnDeposit > 0 && <Row label="Return deposit (refundable)" value={naira(returnDeposit)} />} */}
