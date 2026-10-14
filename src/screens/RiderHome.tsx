@@ -9,6 +9,8 @@ import { IncomingJobOverlay } from '../components/IncomingJobOverlay';
 import { Button, Card, Mono, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 import { isRiderActive } from '../lib/jobStatus';
+
+const MAX_ACTIVE = 2; // mirror of the server's MAX_ACTIVE_JOBS_PER_RIDER (UX-only; server enforces)
 import { maybePromptFullScreenIntent } from '../lib/fullScreenPermission';
 import { chime } from '../lib/settings';
 /** Metres -> "X.X km" for the rider's job cards. */
@@ -18,7 +20,9 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
   const toast = useToast();
   const [online, setOnline] = useState(false);
   const [jobs, setJobs] = useState<AvailableJob[]>([]);
-  const [activeJob, setActiveJob] = useState<Job | null>(null);
+  // A rider may stack up to MAX_ACTIVE active deliveries (mirrors the server cap; the server is the real
+  // enforcer — this is just for a responsive UI). Keep in sync with MAX_ACTIVE_JOBS_PER_RIDER (default 2).
+  const [activeJobs, setActiveJobs] = useState<Job[]>([]);
   const [hasBank, setHasBank] = useState<boolean | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [incoming, setIncoming] = useState<AvailableJob | null>(null); // full-screen takeover for a new job
@@ -27,7 +31,7 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
   const loadOnce = useCallback(async () => {
     await Promise.all([
       api.getAvailability().then((a) => setOnline(a.online)).catch(() => {}),
-      api.assignedJobs().then((js) => setActiveJob(js.find((j) => isRiderActive(j.status)) ?? null)).catch(() => {}),
+      api.assignedJobs().then((js) => setActiveJobs(js.filter((j) => isRiderActive(j.status)))).catch(() => {}),
       api.getAccount().then((a) => setHasBank(a != null)).catch(() => setHasBank(null)),
     ]);
   }, []);
@@ -70,7 +74,7 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
   // and only when they can actually take it (online, no active delivery, bank on file). Each job is
   // marked seen so it can never take over twice; if it's declined it stays in the list below.
   useEffect(() => {
-    if (!online || activeJob || noBank || incoming) return;
+    if (!online || activeJobs.length >= MAX_ACTIVE || noBank || incoming) return;
     const fresh = jobs.find((j) => !seenIds.current.has(j.id));
     if (fresh) {
       seenIds.current.add(fresh.id);
@@ -79,11 +83,11 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
       // so it honours the "Alert sounds" toggle in Profile and needs no bundled audio asset.
       chime('New delivery nearby', 'A new delivery is available — tap to accept.');
     }
-  }, [jobs, online, activeJob, noBank, incoming]);
+  }, [jobs, online, activeJobs.length, noBank, incoming]);
 
-  // Tear the takeover down the moment the rider is no longer eligible (went offline, or now has an
-  // active delivery) so a stale card can't linger.
-  useEffect(() => { if (!online || activeJob) setIncoming(null); }, [online, activeJob]);
+  // Tear the takeover down the moment the rider is no longer eligible (went offline, or is already at
+  // the active-delivery cap) so a stale card can't linger.
+  useEffect(() => { if (!online || activeJobs.length >= MAX_ACTIVE) setIncoming(null); }, [online, activeJobs.length]);
 
   const toggle = async () => {
     if (noBank) { onOpenPayout?.(); return; }
@@ -101,9 +105,10 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
 
   const accept = async (id: string) => {
     if (noBank) { onOpenPayout?.(); return; }
-    // Single active delivery: if the rider is already on one, don't accept another — take them to it.
-    // Mirrors the server guard, so the button is a fast local no-op instead of a round-trip that 409s.
-    if (activeJob) { toast('Finish or release your current delivery first'); navigation.navigate('RiderJob', { jobId: activeJob.id }); return; }
+    // Stacking cap: if the rider is already at the max active deliveries, don't accept another — take
+    // them to their first active trip. Mirrors the server guard, so the button is a fast local no-op
+    // instead of a round-trip that 409s.
+    if (activeJobs.length >= MAX_ACTIVE) { toast(`You already have ${activeJobs.length} active deliveries — finish or release one first`); navigation.navigate('RiderJob', { jobId: activeJobs[0].id }); return; }
     try { const j = await api.accept(id); navigation.navigate('RiderJob', { jobId: j.id }); }
     catch (e) { toast((e as Error).message); loadFeed(); }
   };
@@ -113,12 +118,19 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.ink} />}>
       <AppHeader navigation={navigation} />
       <Spacer h={16} />
-      {activeJob && (
+      {activeJobs.length > 0 && (
         <Card style={{ borderColor: t.ink, marginBottom: 16 }}>
-          <Mono>YOU HAVE AN ACTIVE DELIVERY</Mono>
-          <Text style={{ fontSize: t.size.body, fontWeight: '700', marginTop: 4 }}>{naira(riderJobPayout(activeJob))} · {activeJob.status.replace(/_/g, ' ').toLowerCase()}</Text>
-          <Spacer h={10} />
-          <Button label="Resume delivery" onPress={() => navigation.navigate('RiderJob', { jobId: activeJob.id })} />
+          <Mono>{activeJobs.length > 1 ? `YOU HAVE ${activeJobs.length} ACTIVE DELIVERIES` : 'YOU HAVE AN ACTIVE DELIVERY'}</Mono>
+          {activeJobs.map((j, i) => (
+            <View key={j.id} style={{ marginTop: i === 0 ? 8 : 12, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: t.line2, paddingTop: i === 0 ? 0 : 12 }}>
+              <Text style={{ fontSize: t.size.body, fontWeight: '700' }}>{naira(riderJobPayout(j))} · {j.status.replace(/_/g, ' ').toLowerCase()}</Text>
+              <Text style={{ fontSize: t.size.caption, color: t.ink2, marginTop: 2 }} numberOfLines={1}>
+                {(j.pickupArea || 'Pickup')} → {(j.dropoffArea || 'Drop-off')}
+              </Text>
+              <Spacer h={8} />
+              <Button label={activeJobs.length > 1 ? `Open delivery ${i + 1}` : 'Resume delivery'} onPress={() => navigation.navigate('RiderJob', { jobId: j.id })} />
+            </View>
+          ))}
         </Card>
       )}
 
@@ -145,8 +157,8 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
       {online && (
         <View style={{ marginTop: 16 }}>
           <Mono style={{ marginBottom: 8 }}>AVAILABLE JOBS</Mono>
-          {activeJob && (
-            <Mono style={{ color: t.ink2, marginBottom: 8 }}>FINISH YOUR ACTIVE DELIVERY TO ACCEPT A NEW ONE</Mono>
+          {activeJobs.length >= MAX_ACTIVE && (
+            <Mono style={{ color: t.ink2, marginBottom: 8 }}>YOU&apos;RE AT THE MAX OF {MAX_ACTIVE} ACTIVE DELIVERIES — FINISH ONE TO ACCEPT A NEW ONE</Mono>
           )}
           {jobs.length === 0 ? (
             <Card style={{ alignItems: 'center' }}><Mono style={{ color: t.mid }}>NO JOBS YET — YOU&apos;LL SEE THEM HERE</Mono></Card>
@@ -174,7 +186,7 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
                 )}
                 <Mono style={{ color: t.mid }}>TRIP {km(j.tripDistanceMeters)} · ~{j.tripEtaMin} MIN</Mono>
               </View>
-              <Button label="Accept job" onPress={() => accept(j.id)} disabled={noBank || !!activeJob} />
+              <Button label="Accept job" onPress={() => accept(j.id)} disabled={noBank || activeJobs.length >= MAX_ACTIVE} />
             </Card>
           ))}
         </View>

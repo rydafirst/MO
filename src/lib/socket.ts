@@ -27,11 +27,16 @@ export function useJobLocation(jobId: string, userId: string) {
   return { point, stale };
 }
 
-/** Rider side: publish location to the job channel. */
+/** Rider side: publish location. Fans out to EVERY delivery the rider is currently on (so a stacked
+ *  second customer also sees them move), and keeps the per-job emit so an older backend still works
+ *  during the deploy window. The backend throttles, so the overlap on the current job is harmless. */
 export function createRiderPublisher(jobId: string, riderId: string) {
   const socket = io(WS_URL, { transports: ['websocket'] });
   return {
-    publish: (lat: number, lng: number) => socket.emit('location', { jobId, riderId, lat, lng }),
+    publish: (lat: number, lng: number) => {
+      socket.emit('locationAll', { riderId, lat, lng });     // new: fans out to all the rider's active jobs
+      socket.emit('location', { jobId, riderId, lat, lng }); // compat: current job on older backends
+    },
     close: () => socket.disconnect(),
   };
 }
