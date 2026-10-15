@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
@@ -9,14 +9,14 @@ import { registerForPush } from '../lib/push';
 import { Button, Input, KeyboardScreen, Mono, Segmented } from '../ui';
 import { t } from '../theme';
 
-type Role = 'CUSTOMER' | 'RIDER';
 type Mode = 'signin' | 'signup';
 const RESEND_COOLDOWN = 30; // seconds between code requests (UX guard on top of the server rate limit)
+// Riders register on the web, never in the app — the account is created there, then they sign in here.
+const RIDER_SIGNUP_URL = 'https://rydafirst.com/login?role=rider';
 
 export function LoginScreen({ navigation }: NativeStackScreenProps<RootStack, 'Login'>) {
   const [mode, setMode] = useState<Mode>('signin');
   const [phase, setPhase] = useState<'phone' | 'code'>('phone');
-  const [role, setRole] = useState<Role>('CUSTOMER');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
@@ -54,7 +54,9 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStack, 'L
   const verify = async () => {
     setErr(null); setNote(null); setBusy(true);
     try {
-      const tok = await api.verifyOtp(phone, code, role);
+      // The app only ever creates customer accounts; riders register on the web. For an existing
+      // account the server ignores this and returns the account's own (sticky) role.
+      const tok = await api.verifyOtp(phone, code, 'CUSTOMER');
       await setToken(tok.accessToken);
       void registerForPush(); // ask for push permission + register this device (best-effort)
       navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
@@ -75,12 +77,6 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStack, 'L
           />
         </View>
 
-        <Segmented
-          options={[{ value: 'CUSTOMER', label: 'I need a delivery' }, { value: 'RIDER', label: 'I am a rider' }]}
-          value={role}
-          onChange={setRole}
-        />
-
         {phase === 'phone' ? (
           <>
             {isSignup ? (
@@ -94,12 +90,25 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStack, 'L
             <Mono style={{ fontSize: t.size.caption, color: t.mid, marginBottom: 16 }}>WE&apos;LL TEXT YOUR CODE BY SMS</Mono>
             <Button label={busy ? 'Sending…' : isSignup ? 'Create account' : 'Send code'} onPress={sendOtp} busy={busy} />
             {isSignup ? (
-              <Text style={{ fontSize: t.size.caption, color: t.ink2, lineHeight: 19, marginTop: 14, textAlign: 'center' }}>
-                By creating an account you agree to our{' '}
-                <Text style={{ color: t.ink, textDecorationLine: 'underline' }} onPress={() => navigation.navigate('Legal', { doc: 'terms' })}>Terms of Use</Text>
-                {' '}and{' '}
-                <Text style={{ color: t.ink, textDecorationLine: 'underline' }} onPress={() => navigation.navigate('Legal', { doc: 'privacy' })}>Privacy Policy</Text>.
-              </Text>
+              <>
+                <Text style={{ fontSize: t.size.caption, color: t.ink2, lineHeight: 19, marginTop: 14, textAlign: 'center' }}>
+                  By creating an account you agree to our{' '}
+                  <Text style={{ color: t.ink, textDecorationLine: 'underline' }} onPress={() => navigation.navigate('Legal', { doc: 'terms' })}>Terms of Use</Text>
+                  {' '}and{' '}
+                  <Text style={{ color: t.ink, textDecorationLine: 'underline' }} onPress={() => navigation.navigate('Legal', { doc: 'privacy' })}>Privacy Policy</Text>.
+                </Text>
+                <View style={{ borderTopWidth: 1, borderTopColor: t.line2, marginTop: 18, paddingTop: 16 }}>
+                  <Text style={{ fontSize: t.size.small, color: t.ink2, lineHeight: 20, textAlign: 'center' }}>
+                    Want to ride &amp; earn with Rydafirst?
+                  </Text>
+                  <Mono
+                    onPress={() => void Linking.openURL(RIDER_SIGNUP_URL)}
+                    style={{ textAlign: 'center', color: t.ink, letterSpacing: 0.7, marginTop: 6, paddingVertical: 4 }}
+                  >
+                    REGISTER AS A RIDER ON THE WEB →
+                  </Mono>
+                </View>
+              </>
             ) : null}
           </>
         ) : (
@@ -110,7 +119,7 @@ export function LoginScreen({ navigation }: NativeStackScreenProps<RootStack, 'L
               <Mono style={{ fontSize: t.size.caption, color: t.mid }}>SENT TO {phone}</Mono>
               <Mono onPress={resend} style={{ fontSize: t.size.caption, color: cooldown > 0 || busy ? t.mid : t.ink }}>{cooldown > 0 ? `RESEND IN ${cooldown}S` : 'RESEND CODE'}</Mono>
             </View>
-            <Button label={busy ? 'Working…' : `Verify as ${role === 'RIDER' ? 'rider' : 'customer'}`} onPress={verify} busy={busy} />
+            <Button label={busy ? 'Working…' : 'Verify'} onPress={verify} busy={busy} />
             <Mono onPress={() => { setPhase('phone'); setCode(''); setErr(null); setNote(null); }} style={{ marginTop: 12, color: t.ink2 }}>← USE A DIFFERENT NUMBER</Mono>
           </>
         )}

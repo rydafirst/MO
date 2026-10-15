@@ -168,12 +168,17 @@ async function call<T>(path: string, opts: RequestInit & { auth?: boolean } = {}
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
+export interface MyReferral { code: string; link: string; rewardMinor: number; invited: number; pending: number; credited: number; earnedMinor: number }
+
 export const api = {
   // ---- Auth ----
   requestOtp: (phone: string, email?: string, name?: string) =>
     call<{ status: string }>(`/auth/otp/request`, { auth: false, method: 'POST', body: JSON.stringify({ phone, ...(email ? { email } : {}), ...(name ? { name } : {}) }) }),
   verifyOtp: (phone: string, code: string, role: 'CUSTOMER' | 'RIDER' = 'CUSTOMER') =>
     call<{ accessToken: string; refreshToken: string }>(`/auth/otp/verify`, { auth: false, method: 'POST', body: JSON.stringify({ phone, code, role }) }),
+
+  // ---- Referrals (rider) ----
+  myReferral: () => call<MyReferral>(`/me/referrals`),
 
   // ---- Customer: booking + orders ----
   // #4 MULTI-STOP: `stops` = ordered EXTRA drop-off points AFTER the primary dropoff (max 8). The

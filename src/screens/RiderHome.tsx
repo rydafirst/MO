@@ -12,7 +12,8 @@ import { isRiderActive } from '../lib/jobStatus';
 
 const MAX_ACTIVE = 2; // mirror of the server's MAX_ACTIVE_JOBS_PER_RIDER (UX-only; server enforces)
 import { maybePromptFullScreenIntent } from '../lib/fullScreenPermission';
-import { chime } from '../lib/settings';
+import { isSoundEnabled } from '../lib/settings';
+import { startNewJobAlarm, stopNewJobAlarm } from '../lib/alertSound';
 /** Metres -> "X.X km" for the rider's job cards. */
 const km = (m: number) => `${(Math.round(m / 100) / 10).toFixed(1)} KM`;
 
@@ -79,11 +80,18 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
     if (fresh) {
       seenIds.current.add(fresh.id);
       setIncoming(fresh);
-      // Audible alert so a rider doesn't miss a new job while looking away. Reuses the shared chime,
-      // so it honours the "Alert sounds" toggle in Profile and needs no bundled audio asset.
-      chime('New delivery nearby', 'A new delivery is available — tap to accept.');
     }
   }, [jobs, online, activeJobs.length, noBank, incoming]);
+
+  // Continuous "InDrive-style" alarm: once a new job takes over, loop our custom tone at full volume
+  // (overriding the iOS mute switch) and vibrate until the rider acts — accepting or dismissing clears
+  // `incoming`, which stops it. The takeover card's own timer tears it down after ~1 min as a backstop,
+  // which also clears `incoming` and stops the sound. Honours the "Alert sounds" toggle in Profile.
+  useEffect(() => {
+    if (incoming && isSoundEnabled()) void startNewJobAlarm();
+    else stopNewJobAlarm();
+    return () => stopNewJobAlarm();
+  }, [incoming?.id]);
 
   // Tear the takeover down the moment the rider is no longer eligible (went offline, or is already at
   // the active-delivery cap) so a stale card can't linger.
@@ -197,6 +205,7 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
     </ScrollView>
     <IncomingJobOverlay
       job={incoming}
+      durationMs={60_000} /* stays up ~1 min, ringing, so the rider can't miss it — they accept/dismiss to stop it */
       onAccept={(id) => { setIncoming(null); accept(id); }}
       onDismiss={() => setIncoming(null)}
     />

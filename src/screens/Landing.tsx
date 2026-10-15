@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, G, Line, Path, Rect } from 'react-native-svg';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -6,8 +6,12 @@ import type { RootStack } from '../App';
 import { Button, Mono } from '../ui';
 import { t } from '../theme';
 
+// Riders register on the web, not in the app.
+const RIDER_SIGNUP_URL = 'https://rydafirst.com/login?role=rider';
+
 export function LandingScreen({ navigation }: NativeStackScreenProps<RootStack, 'Landing'>) {
   const toLogin = () => navigation.navigate('Login');
+  const toRiderSignup = () => void Linking.openURL(RIDER_SIGNUP_URL);
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.bg2 }} edges={['top', 'left', 'right', 'bottom']}>
       <View style={{ flex: 1, padding: 24 }}>
@@ -28,7 +32,7 @@ export function LandingScreen({ navigation }: NativeStackScreenProps<RootStack, 
 
         <View style={{ gap: 10, paddingBottom: 8 }}>
           <Button label="Get started" onPress={toLogin} />
-          <Mono onPress={toLogin} style={{ textAlign: 'center', fontSize: t.size.caption, color: t.ink, letterSpacing: 0.7, paddingVertical: 4 }}>I WANT TO RIDE & EARN →</Mono>
+          <Mono onPress={toRiderSignup} style={{ textAlign: 'center', fontSize: t.size.caption, color: t.ink, letterSpacing: 0.7, paddingVertical: 4 }}>I WANT TO RIDE & EARN →</Mono>
         </View>
       </View>
     </SafeAreaView>

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Alert, Image, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Image, Share, StyleSheet, Switch, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadAsync, getInfoAsync, FileSystemUploadType } from 'expo-file-system/legacy';
-import { api, naira, type Account } from '../api';
+import { api, naira, type Account, type MyReferral } from '../api';
 import { clearToken, getRole, getToken } from '../lib/session';
 import { unregisterForPush } from '../lib/push';
 import { setRememberedTab } from '../lib/tabMemory';
 import { isSoundEnabled, setSoundEnabled } from '../lib/settings';
+import { stopNewJobAlarm } from '../lib/alertSound';
 import type { AppNav } from '../nav';
 import { BankAccountForm } from '../components/BankAccountForm';
 import { Button, Card, H1, KeyboardScreen, Mono, PressableScale, Spacer, useToast } from '../ui';
@@ -24,7 +25,8 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
   const [phone, setPhone] = useState<string | null>(null);
   const [earnings, setEarnings] = useState<number | null>(null); // rider earnings, moved here from the dashboard
   const [soundOn, setSoundOn] = useState(isSoundEnabled());
-  const toggleSound = (on: boolean) => { setSoundOn(on); void setSoundEnabled(on); };
+  // Turning sound off also silences an alarm that's ringing RIGHT NOW (not just the next one).
+  const toggleSound = (on: boolean) => { setSoundOn(on); if (!on) stopNewJobAlarm(); void setSoundEnabled(on); };
   useEffect(() => { getToken().then((tok) => setRole(getRole(tok))); }, []);
   useEffect(() => { api.myAvatar().then((a) => setPhotoUrl(a.photoUrl)).catch(() => {}); }, []);
   useEffect(() => { api.me().then((m) => setPhone(m.phone)).catch(() => {}); }, []);
@@ -109,6 +111,8 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
         <Row label="Help & support" onPress={() => navigation.navigate('Support')} last />
       </Card>
 
+      {isRider && <ReferralCard />}
+
       <Card style={{ marginBottom: 16 }}>
         <Mono style={{ fontSize: t.size.caption, marginBottom: 10 }}>PREFERENCES</Mono>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -138,6 +142,57 @@ export function ProfileTab({ navigation, onPrimary }: { navigation: AppNav; onPr
         </PressableScale>
       </Card>
     </KeyboardScreen>
+  );
+}
+
+// Rider "Invite & earn": share a personal code/link; earn once a referred rider finishes their first
+// delivery (an admin credits it). The code is generated server-side on first load.
+function ReferralCard() {
+  const [data, setData] = useState<MyReferral | null>(null);
+  useEffect(() => { api.myReferral().then(setData).catch(() => {}); }, []);
+
+  const share = async () => {
+    if (!data) return;
+    try {
+      await Share.share({ message: `Join me on Rydafirst as a rider and start earning. Use my code ${data.code}: ${data.link}` });
+    } catch { /* user cancelled */ }
+  };
+
+  return (
+    <Card style={{ marginBottom: 16, borderColor: t.ink }}>
+      <Mono style={{ fontSize: t.size.caption }}>INVITE &amp; EARN</Mono>
+      <Text style={{ fontSize: t.size.small, color: t.ink2, lineHeight: 18, marginTop: 6, marginBottom: 12 }}>
+        {data
+          ? `Earn ${naira(data.rewardMinor)} for every rider who joins with your code and completes their first delivery.`
+          : 'Loading…'}
+      </Text>
+
+      {data && (
+        <>
+          <View style={{ borderWidth: 1, borderColor: t.line, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginBottom: 10 }}>
+            <Text style={{ fontFamily: t.mono, fontSize: t.size.dataLg, fontWeight: '700', letterSpacing: 4, color: t.ink }}>{data.code}</Text>
+          </View>
+          <Button label="Share your invite link" onPress={share} />
+          <PressableScale onPress={() => { void Share.share({ message: data.link }); }}>
+            <Mono style={{ textAlign: 'center', color: t.ink2, marginTop: 10 }}>SHARE LINK ONLY →</Mono>
+          </PressableScale>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+            <ReferralStat label="INVITED" value={String(data.invited)} />
+            <ReferralStat label="PENDING" value={String(data.pending)} />
+            <ReferralStat label="EARNED" value={naira(data.earnedMinor)} />
+          </View>
+        </>
+      )}
+    </Card>
+  );
+}
+
+function ReferralStat({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ flex: 1, borderWidth: 1, borderColor: t.line2, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}>
+      <Text style={{ fontFamily: t.mono, fontSize: t.size.body, fontWeight: '700', color: t.ink }}>{value}</Text>
+      <Mono style={{ fontSize: t.size.caption, color: t.ink2, marginTop: 2 }}>{label}</Mono>
+    </View>
   );
 }
 
