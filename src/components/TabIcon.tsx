@@ -1,13 +1,28 @@
 import Svg, { Circle, Path } from 'react-native-svg';
 
-export type IconName = 'home' | 'bike' | 'orders' | 'user' | 'bell';
+export type IconName = 'home' | 'bike' | 'orders' | 'user' | 'bell' | 'camera' | 'mic' | 'play' | 'pause';
 
-/** Line icons for the bottom navigation — identical set to the web BottomNav. */
+/** Line icons shared across the app (bottom nav, chat composer…) — same monochrome line set as the web. */
 export function TabIcon({ name, color, size = 22 }: { name: IconName; color: string; size?: number }) {
   const c = { fill: 'none', stroke: color, strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  const solid = { fill: color };
   return (
     <Svg viewBox="0 0 24 24" width={size} height={size}>
       {name === 'home' && <Path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" {...c} />}
+      {name === 'camera' && (
+        <>
+          <Path d="M3 8a1 1 0 0 1 1-1h2.5l1.3-1.8a1 1 0 0 1 .8-.4h6.8a1 1 0 0 1 .8.4L17.5 7H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" {...c} />
+          <Circle cx={12} cy={13} r={3.4} {...c} />
+        </>
+      )}
+      {name === 'mic' && (
+        <>
+          <Path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z" {...c} />
+          <Path d="M5 11a7 7 0 0 0 14 0M12 18v3" {...c} />
+        </>
+      )}
+      {name === 'play' && <Path d="M8 5.5v13l11-6.5z" {...solid} />}
+      {name === 'pause' && <Path d="M7 5h3.2v14H7zM13.8 5H17v14h-3.2z" {...solid} />}
       {name === 'bike' && (
         <>
           <Circle cx={6} cy={17} r={3.2} {...c} />

@@ -123,6 +123,9 @@ function ReferralCard() {
   const [data, setData] = useState<MyReferral | null>(null);
   useEffect(() => { api.myReferral().then(setData).catch(() => {}); }, []);
 
+  // Program switched off from admin → hide the whole card.
+  if (data && !data.enabled) return null;
+
   const share = async () => {
     if (!data) return;
     try {

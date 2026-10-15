@@ -10,6 +10,7 @@ import type { RootStack } from '../App';
 import { api, type ChatMessage } from '../api';
 import { getToken, getUserId } from '../lib/session';
 import { Button, Mono, Screen, useToast } from '../ui';
+import { TabIcon } from '../components/TabIcon';
 import { t } from '../theme';
 import { useKeyboardInset } from '../lib/keyboard';
 
@@ -294,7 +295,7 @@ export function ChatScreen({ route, navigation }: NativeStackScreenProps<RootSta
                 {item.replyToId ? (
                   <View style={[s.quote, { borderLeftColor: mine ? t.onDark : t.primary }]}>
                     <Text numberOfLines={2} style={{ color: mine ? t.onDark : t.ink2, fontSize: t.size.small, opacity: 0.9 }}>
-                      {repliedTo ? (repliedTo.audioUrl ? '🎤 Voice note' : repliedTo.imageUrl ? '📷 Photo' : repliedTo.body) : 'Message'}
+                      {repliedTo ? (repliedTo.audioUrl ? 'Voice note' : repliedTo.imageUrl ? 'Photo' : repliedTo.body) : 'Message'}
                     </Text>
                   </View>
                 ) : null}
@@ -352,7 +353,7 @@ export function ChatScreen({ route, navigation }: NativeStackScreenProps<RootSta
       ) : (
         <View style={[s.composer, { marginBottom: kbInset }]}>
           <Pressable onPress={sendImage} style={s.micBtn} accessibilityLabel="Attach a photo">
-            <Text style={{ fontSize: 20 }}>📷</Text>
+            <TabIcon name="camera" color={t.ink} size={22} />
           </Pressable>
           <TextInput
             style={s.input}
@@ -367,7 +368,7 @@ export function ChatScreen({ route, navigation }: NativeStackScreenProps<RootSta
             <View style={{ width: 84 }}><Button label="Send" onPress={send} /></View>
           ) : (
             <Pressable onPress={startRecording} style={s.micBtn} accessibilityLabel="Record a voice note">
-              <Text style={{ fontSize: 20 }}>🎤</Text>
+              <TabIcon name="mic" color={t.ink} size={22} />
             </Pressable>
           )}
         </View>
@@ -401,7 +402,7 @@ function VoiceBubble({ url, durationMs, mine }: { url: string; durationMs?: numb
   return (
     <Pressable onPress={toggle} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 168, paddingVertical: 2 }}>
       <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: mine ? 'rgba(255,255,255,0.18)' : t.primarySoft }}>
-        <Text style={{ color: ink, fontSize: 15 }}>{status.playing ? '❚❚' : '▶'}</Text>
+        <TabIcon name={status.playing ? 'pause' : 'play'} color={ink} size={16} />
       </View>
       <View style={{ flex: 1 }}>
         <View style={{ height: 3, borderRadius: 2, backgroundColor: mine ? 'rgba(255,255,255,0.3)' : t.line, overflow: 'hidden' }}>

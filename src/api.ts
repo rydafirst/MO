@@ -138,7 +138,7 @@ export interface PendingRating { jobId: string; amountMinor: number; createdAt: 
 // ---- Support chat (#5 agent hand-off + #6 per-trip) ----
 // Mirrors backend/src/modules/support/domain/support.ts. A thread starts in BOT (a short scripted
 // funnel), then escalates to AWAITING_AGENT once the final free-text step is answered.
-export type SupportCategory = 'PAYMENT' | 'DELIVERY_ISSUE' | 'CONDUCT' | 'ACCOUNT' | 'APP_ISSUE' | 'OTHER';
+export type SupportCategory = 'PAYMENT' | 'DELIVERY_ISSUE' | 'CONDUCT' | 'ACCOUNT' | 'APP_ISSUE' | 'OTHER' | 'ANNOUNCEMENT';
 export type SupportStatus = 'BOT' | 'AWAITING_AGENT' | 'AGENT_JOINED' | 'RESOLVED';
 export interface SupportThread {
   id: string; userId: string; jobId?: string; category: SupportCategory; status: SupportStatus;
@@ -168,7 +168,7 @@ async function call<T>(path: string, opts: RequestInit & { auth?: boolean } = {}
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
-export interface MyReferral { code: string; link: string; rewardMinor: number; invited: number; pending: number; credited: number; earnedMinor: number }
+export interface MyReferral { enabled: boolean; code: string; link: string; rewardMinor: number; invited: number; pending: number; credited: number; earnedMinor: number }
 
 export const api = {
   // ---- Auth ----

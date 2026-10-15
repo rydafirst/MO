@@ -27,6 +27,7 @@ export const SUPPORT_CATEGORY_LABEL: Record<SupportCategory, string> = {
   ACCOUNT: 'Account',
   APP_ISSUE: 'App problem',
   OTHER: 'Something else',
+  ANNOUNCEMENT: 'Message from Rydafirst',
 };
 
 /** Short helper line shown under each category card in the picker. */
@@ -37,6 +38,7 @@ export const SUPPORT_CATEGORY_HINT: Record<SupportCategory, string> = {
   ACCOUNT: 'Login, verification or your details',
   APP_ISSUE: 'A bug, crash or something not loading',
   OTHER: 'Anything not listed above',
+  ANNOUNCEMENT: 'An official message from the Rydafirst team',
 };
 
 export const SUPPORT_CATEGORIES: readonly SupportCategory[] = [
@@ -48,6 +50,8 @@ export const SUPPORT_CATEGORIES: readonly SupportCategory[] = [
  * then the closing free-text step.
  */
 export const SUPPORT_BOT: Readonly<Record<SupportCategory, readonly BotStep[]>> = {
+  // Admin-initiated; the bot script never runs for these (the thread opens already joined by an agent).
+  ANNOUNCEMENT: [{ kind: 'freetext', prompt: 'You can reply to the Rydafirst team here.' }],
   PAYMENT: [
     {
       kind: 'choice',
