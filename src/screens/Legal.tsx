@@ -14,7 +14,7 @@ const TERMS: Array<[string, string]> = [
   ['Prohibited items', 'You may not send illegal, dangerous, stolen or restricted goods. You are responsible for the contents you send and for complying with applicable law.'],
   ['Disputes', 'If something goes wrong with a delivery, you can open a dispute in the app within the stated window. Our team reviews the evidence, including the delivery timeline and messages, and decides whether funds are released, refunded or split.'],
   ['Liability', 'Rydafirst provides the platform on an "as is" basis and is not the provider of the delivery itself. To the extent permitted by law, our liability is limited to the fees paid for the affected delivery.'],
-  ['Changes and contact', 'We may update these terms and will post the updated version in the app. Questions? Contact support@rydafirst.com.'],
+  ['Changes and contact', 'We may update these terms and will post the updated version in the app. Questions? Contact rydafirst@gmail.com.'],
 ];
 
 const PRIVACY: Array<[string, string]> = [
@@ -23,7 +23,7 @@ const PRIVACY: Array<[string, string]> = [
   ['Location', 'Location is used only to enable and track an active delivery and to confirm pickup and drop-off. You can turn location off in your device settings, though some features will not work without it.'],
   ['Sharing', 'We share the minimum necessary with the other party to a delivery and with service providers such as our payment processor, SMS/email providers and cloud hosting. We may disclose data where required by law.'],
   ['Retention and security', 'We keep data only as long as needed for the purposes above or as required by law, and we apply appropriate security measures. Raw location data is kept for a short period.'],
-  ['Your rights', 'You can request access to, correction of, or deletion of your personal data, subject to legal limits. Contact privacy@rydafirst.com to make a request.'],
+  ['Your rights', 'You can request access to, correction of, or deletion of your personal data, subject to legal limits. Contact rydafirst@gmail.com to make a request.'],
 ];
 
 export function LegalScreen({ route, navigation }: NativeStackScreenProps<RootStack, 'Legal'>) {

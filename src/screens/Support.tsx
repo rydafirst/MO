@@ -1,10 +1,13 @@
 import { useCallback, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Alert, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
 import { api, type SupportCategory, type SupportStatus, type SupportThread } from '../api';
 import { SUPPORT_CATEGORIES, SUPPORT_CATEGORY_HINT, SUPPORT_CATEGORY_LABEL } from '../lib/supportBot';
+import { clearToken } from '../lib/session';
+import { unregisterForPush } from '../lib/push';
+import { setRememberedTab } from '../lib/tabMemory';
 import { Button, Card, Mono, Pill, PressableScale, Screen, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 
@@ -50,6 +53,28 @@ export function SupportScreen({ navigation }: NativeStackScreenProps<RootStack, 
   const start = (category: SupportCategory) => {
     setPicking(false);
     navigation.navigate('SupportChat', { category });
+  };
+
+  // Delete-account lives here, under Help & support, rather than out on the profile.
+  const deleteAccount = () => {
+    Alert.alert(
+      'Delete your account?',
+      'This erases your name, email and photo and signs you out everywhere. It cannot be undone. Records the law requires us to keep are retained without identifying you.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.deleteAccount();
+              setRememberedTab(null); await unregisterForPush(); await clearToken();
+              navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+            } catch (e) { toast((e as Error).message); }
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -106,6 +131,19 @@ export function SupportScreen({ navigation }: NativeStackScreenProps<RootStack, 
                 </PressableScale>
               );
             })}
+
+            {/* Account deletion lives here under Help & support, not on the profile. */}
+            <Spacer h={24} />
+            <Card style={{ borderColor: t.danger }}>
+              <Mono style={{ fontSize: t.size.caption, color: t.danger }}>DELETE ACCOUNT</Mono>
+              <Text style={{ fontSize: t.size.small, color: t.ink2, marginTop: 6, marginBottom: 12, lineHeight: 19 }}>
+                Permanently erase your personal data (name, email, photo) and sign out everywhere. Records the
+                law requires us to keep are retained without identifying you.
+              </Text>
+              <PressableScale onPress={deleteAccount} style={{ backgroundColor: t.danger, borderRadius: 10, paddingVertical: 13, alignItems: 'center' }}>
+                <Text style={{ color: t.onDark, fontWeight: '700', fontSize: t.size.body }}>Delete my account</Text>
+              </PressableScale>
+            </Card>
           </>
         )}
       </ScrollView>
