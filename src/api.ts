@@ -46,7 +46,9 @@ export type Fallback = 'WAIT' | 'DELEGATE' | 'RETURN';
 export interface GeoPoint { lat: number; lng: number }
 export interface Quote {
   quoteToken: string; amountMinor: number; currency: 'NGN';
-  breakdown: { baseMinor: number; distanceMinor: number; timeMinor: number; platformFeeMinor: number; totalMinor: number };
+  breakdown: { baseMinor: number; distanceMinor: number; timeMinor: number; discountMinor?: number; platformFeeMinor: number; totalMinor: number };
+  // Cheaper, slower tier for point-to-point deliveries (absent for errands or when economy is off).
+  economy?: { quoteToken: string; amountMinor: number; discountMinor: number };
 }
 // #4 MULTI-STOP: one pickup, several drop-offs in one booking. Extra stops are the ordered EXTRA
 // drop-off points AFTER the primary dropoff. Each carries its own recipient/item/notes and a single-use
@@ -81,7 +83,7 @@ export interface Job {
 export interface ExtraStopDto { recipient?: { name: string; phone: string }; item?: string; instructions?: string; address?: string; area?: string }
 export interface ChatMessage { id: string; jobId: string; senderId: string; body: string; replyToId?: string; audioUrl?: string; audioDurationMs?: number; imageUrl?: string; createdAt: number }
 export interface AvailableJob {
-  id: string; type: JobType; amountMinor: number; currency: 'NGN'; createdAt: string;
+  id: string; type: JobType; tier: 'EXPRESS' | 'ECONOMY'; amountMinor: number; currency: 'NGN'; createdAt: string;
   pickupArea: string; dropoffArea: string; pickupApprox: { lat: number; lng: number };
   tripDistanceMeters: number; tripEtaMin: number;
   toPickupMeters?: number; toPickupEtaMin?: number;

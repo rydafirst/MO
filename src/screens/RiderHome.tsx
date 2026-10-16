@@ -175,6 +175,9 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Mono>{j.type}</Mono>
+                  <View style={{ backgroundColor: j.tier === 'ECONOMY' ? t.mid : t.ink, borderRadius: t.radius.sm, paddingHorizontal: 7, paddingVertical: 2 }}>
+                    <Mono style={{ color: t.onDark, fontSize: t.size.caption }}>{j.tier === 'ECONOMY' ? 'LOW PAY' : 'HIGH PAY'}</Mono>
+                  </View>
                   {/* #4 MULTI-STOP: flag extra drop-offs BEFORE the rider accepts, so the added work is visible. */}
                   {j.stopCount && j.stopCount > 1 ? (
                     <View style={{ backgroundColor: t.ink, borderRadius: t.radius.sm, paddingHorizontal: 7, paddingVertical: 2 }}>

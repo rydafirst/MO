@@ -69,6 +69,7 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
   // #0 DIRECT DELIVERY: fallback choice + first-run explainer modal are disabled for launch.
   // const [fallback, setFallback] = useState<Fallback>('WAIT');
   const [quote, setQuote] = useState<Quote | null>(null);
+  const [tier, setTier] = useState<'EXPRESS' | 'ECONOMY'>('EXPRESS');
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<Job | null>(null);
   // const [showFallback, setShowFallback] = useState(false);
@@ -96,6 +97,7 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
       const dt: GeoPoint = { lat: dropoff.lat, lng: dropoff.lng };
       // #4 MULTI-STOP: ordered EXTRA drop-off points AFTER the primary drop-off (same order as the UI).
       const stopPts: GeoPoint[] = extraStops.flatMap((s) => (s.place ? [{ lat: s.place.lat, lng: s.place.lng }] : []));
+      setTier('EXPRESS');
       setQuote(await api.quote({ type, pickup: pt, dropoff: dt, ...(stopPts.length ? { stops: stopPts } : {}) }));
       // Auto-scroll to the price breakdown as soon as it's ready (matches web).
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
@@ -122,7 +124,7 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
       }));
       const job = await api.createJob({
         // #0 DIRECT DELIVERY: no longer send `fallbackPolicy` — backend defaults to direct mode.
-        quoteToken: quote.quoteToken, returnUrl,
+        quoteToken: tier === 'ECONOMY' && quote.economy ? quote.economy.quoteToken : quote.quoteToken, returnUrl,
         // Only send optional fields when they actually have a value — the server rejects empty strings.
         ...(pickup.label ? { pickupAddress: pickup.label } : {}),
         ...(dropoff.label ? { dropoffAddress: dropoff.label } : {}),
@@ -306,14 +308,32 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
           // const grandTotal = quote.breakdown.totalMinor + returnDeposit;
           return (
             <Card style={{ marginTop: 16 }}>
+              {quote.economy ? (
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                  {([
+                    { key: 'EXPRESS' as const, label: 'Express', sub: 'Fastest', amount: quote.breakdown.totalMinor },
+                    { key: 'ECONOMY' as const, label: 'Economy', sub: 'Cheaper · slower', amount: quote.economy.amountMinor },
+                  ]).map((o) => {
+                    const active = tier === o.key;
+                    return (
+                      <PressableScale key={o.key} onPress={() => setTier(o.key)} style={{ flex: 1, borderWidth: 1, borderColor: active ? t.ink : t.line, borderRadius: 10, padding: 10, backgroundColor: active ? t.bg2 : t.bg }}>
+                        <Text style={{ fontSize: t.size.body, fontWeight: '700', color: t.ink }}>{o.label}</Text>
+                        <Mono style={{ fontSize: t.size.caption, color: t.ink2, marginVertical: 2 }}>{o.sub}</Mono>
+                        <Text style={{ fontWeight: '700', color: t.ink }}>{naira(o.amount)}</Text>
+                      </PressableScale>
+                    );
+                  })}
+                </View>
+              ) : null}
               <Row label="Base" value={naira(quote.breakdown.baseMinor)} />
               <Row label="Distance" value={naira(quote.breakdown.distanceMinor)} />
               {quote.breakdown.timeMinor > 0 ? <Row label="Time" value={naira(quote.breakdown.timeMinor)} /> : null}
-              <Row label="Platform fee" value={naira(quote.breakdown.platformFeeMinor)} />
+              {tier === 'ECONOMY' && quote.economy ? <Row label="Economy saving" value={naira(quote.economy.discountMinor)} /> : null}
+              <Row label="Platform fee" value={naira(tier === 'ECONOMY' && quote.economy ? Math.round((quote.breakdown.platformFeeMinor * quote.economy.amountMinor) / quote.breakdown.totalMinor) : quote.breakdown.platformFeeMinor)} />
               {/* #0 DIRECT DELIVERY: return-deposit row removed. */}
               {/* {returnDeposit > 0 && <Row label="Return deposit (refundable)" value={naira(returnDeposit)} />} */}
               <Divider />
-              <Row label="Total" value={naira(quote.breakdown.totalMinor)} strong />
+              <Row label="Total" value={naira(tier === 'ECONOMY' && quote.economy ? quote.economy.amountMinor : quote.breakdown.totalMinor)} strong />
               {/* #0 DIRECT DELIVERY: return-deposit explainer removed.
               {returnDeposit > 0 && (
                 <Text style={{ fontSize: t.size.caption, color: t.ink2, marginTop: 6, lineHeight: 17 }}>
