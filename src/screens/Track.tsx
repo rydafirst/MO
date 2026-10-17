@@ -12,6 +12,7 @@ import { useRoute } from '../lib/routing';
 import { BankAccountForm } from '../components/BankAccountForm';
 import { ErrandReceiptModal } from '../components/ErrandReceipt';
 import { Button, Card, Mono, Pill, PressableScale, Screen, Spacer, useToast } from '../ui';
+import { usePayment } from '../components/PaymentSheet';
 import { t } from '../theme';
 
 // Ordered lifecycle for the progress bar (identical to web).
@@ -63,6 +64,7 @@ function vehicleLabel(track: string | null): string {
 export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootStack, 'Track'>) {
   const { jobId } = route.params;
   const toast = useToast();
+  const { pay } = usePayment();
   const [job, setJob] = useState<Job | null>(null);
   const [uid, setUid] = useState('');
   const [deliveryCode, setDeliveryCode] = useState<string | null>(null);
@@ -158,8 +160,17 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
   const addTopUp = async () => {
     setAddingTopUp(true);
     try {
-      const r = await api.errandStartTopUp(jobId, createURL('track'));
-      if (r.paymentLink) Linking.openURL(r.paymentLink);
+      const returnUrl = createURL('track');
+      const r = await api.errandStartTopUp(jobId, returnUrl);
+      if (r.paymentLink && /^https?:\/\//i.test(r.paymentLink)) {
+        const res = await pay(r.paymentLink, returnUrl);
+        const txn = res?.transaction_id;
+        const status = res?.status;
+        if (txn && (!status || status === 'successful' || status === 'completed')) {
+          try { await api.confirmPayment(jobId, String(txn)); } catch { /* webhook/polling will catch it */ }
+        }
+        setJob(await api.getJob(jobId));
+      }
     } catch (e) { toast((e as Error).message); }
     finally { setAddingTopUp(false); }
   };
@@ -222,9 +233,17 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
     : 0;
   const makePayment = async () => {
     try {
-      const r = await api.retryPayment(jobId, createURL('track'));
-      if (r.paymentLink) Linking.openURL(r.paymentLink);
-      else if (r.status !== 'CREATED') toast('This order is already paid.', 'success');
+      const returnUrl = createURL('track');
+      const r = await api.retryPayment(jobId, returnUrl);
+      if (r.paymentLink && /^https?:\/\//i.test(r.paymentLink)) {
+        const res = await pay(r.paymentLink, returnUrl);
+        const txn = res?.transaction_id;
+        const status = res?.status;
+        if (txn && (!status || status === 'successful' || status === 'completed')) {
+          try { await api.confirmPayment(jobId, String(txn)); } catch { /* webhook/polling will catch it */ }
+        }
+        setJob(await api.getJob(jobId));
+      } else if (r.status !== 'CREATED') toast('This order is already paid.', 'success');
     } catch (e) { toast((e as Error).message); }
   };
   const notifyComing = async () => {

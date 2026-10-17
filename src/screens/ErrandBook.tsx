@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { api, naira, type Bank, type GeoPoint, type Quote } from '../api';
 import type { AppNav } from '../nav';
 import { AddressField, type Place } from '../components/AddressField';
 import { AppHeader } from '../components/AppHeader';
 import { Button, Card, Field, Input, KeyboardScreen, Mono, Spacer, useToast } from '../ui';
+import { usePayment } from '../components/PaymentSheet';
 import { t } from '../theme';
 
 /**
@@ -17,6 +17,7 @@ import { t } from '../theme';
  */
 export function ErrandBookTab({ navigation }: { navigation: AppNav }) {
   const toast = useToast();
+  const { pay } = usePayment();
   const scrollRef = useRef<ScrollView>(null);
   const [shop, setShop] = useState<Place | null>(null);
   const [dropoff, setDropoff] = useState<Place | null>(null);
@@ -68,18 +69,16 @@ export function ErrandBookTab({ navigation }: { navigation: AppNav }) {
         ...(dropoff.area ? { dropoffArea: dropoff.area } : {}),
         ...(bankCode && accountNumber.length >= 10 ? { bankCode, accountNumber } : {}),
       });
+      // In-app Flutterwave checkout (embedded WebView sheet, no external browser). Returns the redirect
+      // params so we can confirm immediately; Track polling is the fallback if the customer closes it.
       const link = job.paymentLink;
       if (link && /^https?:\/\//i.test(link)) {
-        const sub = Linking.addEventListener('url', async ({ url }) => {
-          const q = Linking.parse(url).queryParams ?? {};
-          const txn = q.transaction_id;
-          const status = q.status;
-          if (txn && (!status || status === 'successful' || status === 'completed')) {
-            try { await api.confirmPayment(job.id, String(txn)); } catch { /* Track polling will catch it */ }
-          }
-          WebBrowser.dismissBrowser();
-        });
-        try { await WebBrowser.openBrowserAsync(link); } finally { sub.remove(); }
+        const r = await pay(link, returnUrl);
+        const txn = r?.transaction_id;
+        const status = r?.status;
+        if (txn && (!status || status === 'successful' || status === 'completed')) {
+          try { await api.confirmPayment(job.id, String(txn)); } catch { /* Track polling will catch it */ }
+        }
       }
       navigation.navigate('Track', { jobId: job.id });
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }

@@ -5,6 +5,7 @@ import { NavigationContainer, createNavigationContainerRef } from '@react-naviga
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Notifications from 'expo-notifications';
 import { ToastProvider } from './ui';
+import { PaymentSheetProvider } from './components/PaymentSheet';
 import { t } from './theme';
 import { getToken, getRole } from './lib/session';
 import { registerForPush } from './lib/push';
@@ -139,6 +140,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ToastProvider>
+        <PaymentSheetProvider>
         <NavigationContainer ref={navigationRef} onReady={() => { void resumeActiveTrip(); }}>
           <Stack.Navigator initialRouteName={initial} screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
             <Stack.Screen name="Landing" component={LandingScreen} />
@@ -160,6 +162,7 @@ export default function App() {
             <Stack.Screen name="SupportChat" component={SupportChatScreen} />
           </Stack.Navigator>
         </NavigationContainer>
+        </PaymentSheetProvider>
       </ToastProvider>
     </SafeAreaProvider>
   );

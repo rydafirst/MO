@@ -9,6 +9,7 @@ import { IncomingJobOverlay } from '../components/IncomingJobOverlay';
 import { Button, Card, Mono, Spacer, useToast } from '../ui';
 import { t } from '../theme';
 import { isRiderActive } from '../lib/jobStatus';
+import { createPoolSubscriber } from '../lib/socket';
 
 const MAX_ACTIVE = 2; // mirror of the server's MAX_ACTIVE_JOBS_PER_RIDER (UX-only; server enforces)
 import { maybePromptFullScreenIntent } from '../lib/fullScreenPermission';
@@ -65,8 +66,14 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
       }
       if (active) loadFeed();
     })();
-    const id = setInterval(loadFeed, 4000);
-    return () => { active = false; clearInterval(id); };
+    const id = setInterval(loadFeed, 3000);
+    // Real-time: drop a job the instant it leaves the pool (cancelled/taken); refetch when one is added.
+    // The takeover overlay clears itself via the effect that watches `jobs`. Polling above is the fallback.
+    const sub = createPoolSubscriber((e) => {
+      if (e.kind === 'remove') setJobs((prev) => prev.filter((j) => j.id !== e.jobId));
+      else loadFeed();
+    });
+    return () => { active = false; clearInterval(id); sub.close(); };
   }, [online, loadFeed]);
 
   const noBank = hasBank === false;
@@ -97,6 +104,13 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
   // the active-delivery cap) so a stale card can't linger.
   useEffect(() => { if (!online || activeJobs.length >= MAX_ACTIVE) setIncoming(null); }, [online, activeJobs.length]);
 
+  // Tear the takeover down the moment its order leaves the live pool — the customer cancelled it or
+  // another rider grabbed it. Without this, a cancelled offer keeps ringing for up to a minute and
+  // "Accept" then errors. The feed refreshes every few seconds, so this reconciles the overlay too.
+  useEffect(() => {
+    if (incoming && jobs.length > 0 && !jobs.some((j) => j.id === incoming.id)) setIncoming(null);
+  }, [jobs, incoming]);
+
   const toggle = async () => {
     if (noBank) { onOpenPayout?.(); return; }
     const next = !online;
@@ -118,7 +132,19 @@ export function RiderHomeTab({ navigation, onOpenPayout }: { navigation: AppNav;
     // instead of a round-trip that 409s.
     if (activeJobs.length >= MAX_ACTIVE) { toast(`You already have ${activeJobs.length} active deliveries — finish or release one first`); navigation.navigate('RiderJob', { jobId: activeJobs[0].id }); return; }
     try { const j = await api.accept(id); navigation.navigate('RiderJob', { jobId: j.id }); }
-    catch (e) { toast((e as Error).message); loadFeed(); }
+    catch (e) {
+      const msg = (e as Error).message;
+      // The order was cancelled or snapped up between the board refresh and this tap: drop the dead
+      // card (and its takeover) and show a soft note instead of a scary error.
+      if (/no longer available|just been taken|not valid|no longer valid/i.test(msg)) {
+        setJobs((prev) => prev.filter((j) => j.id !== id));
+        if (incoming?.id === id) setIncoming(null);
+        toast('That order was just taken or cancelled.');
+      } else {
+        toast(msg);
+      }
+      loadFeed();
+    }
   };
 
   return (

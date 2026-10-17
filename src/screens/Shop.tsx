@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Linking, ScrollView, Text, View } from 'react-native';
+import { Image, ScrollView, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import { createURL } from 'expo-linking';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStack } from '../App';
 import { api, naira, type Product, type Vendor } from '../api';
 import { Button, Card, Mono, PressableScale, Screen, useToast } from '../ui';
+import { usePayment } from '../components/PaymentSheet';
 import { t } from '../theme';
 
 export function ShopScreen({ navigation }: NativeStackScreenProps<RootStack, 'Shop'>) {
@@ -43,6 +44,7 @@ export function ShopScreen({ navigation }: NativeStackScreenProps<RootStack, 'Sh
 export function StorefrontScreen({ route, navigation }: NativeStackScreenProps<RootStack, 'Storefront'>) {
   const { vendorId } = route.params;
   const toast = useToast();
+  const { pay } = usePayment();
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [products, setProducts] = useState<Product[] | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -68,12 +70,21 @@ export function StorefrontScreen({ route, navigation }: NativeStackScreenProps<R
       if (!perm.granted) { toast('Location is needed to price delivery'); return; }
       const pos = await Location.getCurrentPositionAsync({});
       const quote = await api.quote({ type: 'ERRAND', pickup: { lat: vendor.shopLat, lng: vendor.shopLng }, dropoff: { lat: pos.coords.latitude, lng: pos.coords.longitude } });
+      const returnUrl = createURL('track');
       const order = await api.createMarketplaceOrder({
         vendorId, quoteToken: quote.quoteToken,
         items: items.map((p) => ({ productId: p.id, quantity: cart[p.id] ?? 1 })),
-        returnUrl: createURL('track'),
+        returnUrl,
       });
-      if (order.paymentLink) Linking.openURL(order.paymentLink);
+      // In-app Flutterwave checkout (embedded WebView sheet, no external browser).
+      if (order.paymentLink && /^https?:\/\//i.test(order.paymentLink)) {
+        const r = await pay(order.paymentLink, returnUrl);
+        const txn = r?.transaction_id;
+        const status = r?.status;
+        if (txn && (!status || status === 'successful' || status === 'completed')) {
+          try { await api.confirmPayment(order.id, String(txn)); } catch { /* Track polling will catch it */ }
+        }
+      }
       navigation.navigate('Track', { jobId: order.id });
     } catch (e) { toast((e as Error).message); } finally { setBusy(false); }
   };

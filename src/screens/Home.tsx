@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Location from 'expo-location';
 import { api, naira, type ExtraStopDto, type Fallback, type GeoPoint, type Job, type JobType, type Quote } from '../api';
@@ -9,6 +8,7 @@ import { AddressField, type Place } from '../components/AddressField';
 import { AppHeader } from '../components/AppHeader';
 import { MapPreview } from '../components/MapPreview';
 import { Button, Card, Divider, Field, Input, KeyboardScreen, Mono, PressableScale, Segmented, Spacer, useToast } from '../ui';
+import { usePayment } from '../components/PaymentSheet';
 import { t } from '../theme';
 
 // #0 DIRECT DELIVERY: the forced Wait/Delegate/Return machinery is disabled for launch — deliveries
@@ -27,6 +27,7 @@ interface StopDraft { place: Place | null; recipientName: string; recipientPhone
 
 export function HomeTab({ navigation }: { navigation: AppNav }) {
   const toast = useToast();
+  const { pay: payInApp } = usePayment();
   const scrollRef = useRef<ScrollView>(null);
   const pickupY = useRef(0);
   const dropoffY = useRef(0);
@@ -136,21 +137,17 @@ export function HomeTab({ navigation }: { navigation: AppNav }) {
         ...(isDelivery && customerName.trim() ? { customerName: customerName.trim() } : {}),
         ...(isDelivery && extraStopDtos.length ? { extraStops: extraStopDtos } : {}),
       });
-      // Open the Flutterwave hosted checkout in a stable in-app Safari view. (The ASWebAuthenticationSession
-      // API crashes on this device, so we avoid it.) When Flutterwave redirects back to our deep link on
-      // success, auto-close the browser and confirm the payment — so the customer doesn't have to tap Close.
+      // Open the Flutterwave hosted checkout INSIDE the app (embedded WebView sheet — no Chrome/Safari
+      // tab). When Flutterwave redirects back to our returnUrl, the sheet closes itself and hands back
+      // the result so we can confirm the payment immediately (Track polling is the fallback otherwise).
       const link = job.paymentLink;
       if (link && /^https?:\/\//i.test(link)) {
-        const sub = Linking.addEventListener('url', async ({ url }) => {
-          const q = Linking.parse(url).queryParams ?? {};
-          const txn = q.transaction_id;
-          const status = q.status;
-          if (txn && (!status || status === 'successful' || status === 'completed')) {
-            try { await api.confirmPayment(job.id, String(txn)); } catch { /* Track polling will catch it */ }
-          }
-          WebBrowser.dismissBrowser(); // close the checkout and return to the app
-        });
-        try { await WebBrowser.openBrowserAsync(link); } finally { sub.remove(); }
+        const r = await payInApp(link, returnUrl);
+        const txn = r?.transaction_id;
+        const status = r?.status;
+        if (txn && (!status || status === 'successful' || status === 'completed')) {
+          try { await api.confirmPayment(job.id, String(txn)); } catch { /* Track polling will catch it */ }
+        }
       }
       // #4 MULTI-STOP: we do NOT show the booking-time stop codes anymore. The customer reveals each
       // stop's code on the Track screen when the rider reaches that stop — and revealing MINTS A FRESH

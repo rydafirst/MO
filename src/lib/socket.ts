@@ -27,6 +27,22 @@ export function useJobLocation(jobId: string, userId: string) {
   return { point, stale };
 }
 
+export interface PoolEvent { kind: 'add' | 'remove'; jobId: string }
+
+/**
+ * Rider board: live job-pool updates. Joins the pool room and fires `onEvent` whenever a job enters
+ * ('add') or leaves ('remove' — cancelled by the customer or taken by another rider) the pool, so the
+ * board updates instantly instead of waiting for the next poll. HTTP polling stays as a fallback.
+ */
+export function createPoolSubscriber(onEvent: (e: PoolEvent) => void) {
+  const socket = io(WS_URL, { transports: ['websocket'] });
+  const join = () => socket.emit('joinPool');
+  socket.on('connect', join);
+  if (socket.connected) join();
+  socket.on('pool', (e: PoolEvent) => onEvent(e));
+  return { close: () => { try { socket.emit('leavePool'); } catch { /* noop */ } socket.disconnect(); } };
+}
+
 /** Rider side: publish location. Fans out to EVERY delivery the rider is currently on (so a stacked
  *  second customer also sees them move), and keeps the per-job emit so an older backend still works
  *  during the deploy window. The backend throttles, so the overlap on the current job is harmless. */
