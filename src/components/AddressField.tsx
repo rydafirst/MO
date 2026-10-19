@@ -1,9 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
 import * as Location from 'expo-location';
-import { autocomplete, details, newSessionToken, placesConfigured, reverseGeocode, type Prediction } from '../lib/google-places';
+import { autocomplete, details, newSessionToken, placesConfigured, recentPlaces, reverseGeocode, type Prediction, type ResolvedPlace } from '../lib/google-places';
 import { Card, Input, Mono, PressableScale, useToast } from '../ui';
 import { t } from '../theme';
+
+/** Small line clock — marks a recent place, matching the app's monochrome icon set. */
+function ClockIcon() {
+  return (
+    <Svg viewBox="0 0 24 24" width={16} height={16}>
+      <Circle cx={12} cy={12} r={9} fill="none" stroke={t.mid} strokeWidth={1.8} />
+      <Path d="M12 7.5V12l3 2" fill="none" stroke={t.mid} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
 
 export interface Place { lat: number; lng: number; label: string; area: string }
 
@@ -23,6 +34,14 @@ export function AddressField({ label, placeholder, onSelect, onFocus, autoLocate
   const session = useRef(newSessionToken());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chosen = useRef(false); // suppress the autocomplete fetch triggered by selecting a result
+  const [recents, setRecents] = useState<ResolvedPlace[]>([]);
+  const [focused, setFocused] = useState(false);
+
+  // Load the customer's recent places once, so they can appear the instant the field is focused.
+  useEffect(() => { recentPlaces().then(setRecents).catch(() => {}); }, []);
+
+  // Uber-style: show recents before any typing, hide them once the person types or a prediction list shows.
+  const showRecents = focused && text.trim().length === 0 && preds.length === 0 && recents.length > 0;
 
   // Debounced autocomplete as the user types.
   useEffect(() => {
@@ -36,10 +55,20 @@ export function AddressField({ label, placeholder, onSelect, onFocus, autoLocate
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, [text]);
 
+  // A recent place is already resolved to coordinates — select it directly, no billed details call.
+  const pickRecent = (p: ResolvedPlace) => {
+    chosen.current = true;
+    setText(p.label);
+    setPreds([]);
+    setFocused(false);
+    onSelect({ lat: p.lat, lng: p.lng, label: p.label, area: p.area });
+  };
+
   const pick = async (p: Prediction) => {
     chosen.current = true;
     setText(p.description);
     setPreds([]);
+    setFocused(false);
     setBusy(true);
     try {
       const r = await details(p.placeId, session.current);
@@ -97,12 +126,28 @@ export function AddressField({ label, placeholder, onSelect, onFocus, autoLocate
       <Input
         value={text}
         onChangeText={(v) => { chosen.current = false; setText(v); }}
-        onFocus={onFocus}
+        onFocus={() => { setFocused(true); onFocus?.(); }}
         onSubmitEditing={submitFallback}
         returnKeyType="search"
         autoCorrect={false}
         placeholder={placeholder ?? (busy ? 'Locating…' : 'Search address…')}
       />
+      {showRecents && (
+        <View style={{ borderWidth: 1, borderColor: t.line, borderTopWidth: 0, borderBottomLeftRadius: t.radius.md, borderBottomRightRadius: t.radius.md, overflow: 'hidden' }}>
+          <View style={{ paddingVertical: 7, paddingHorizontal: 12, backgroundColor: t.bg2, borderTopWidth: 1, borderTopColor: t.line2 }}>
+            <Mono style={{ fontSize: t.size.caption, color: t.mid }}>RECENT</Mono>
+          </View>
+          {recents.map((r, i) => (
+            <PressableScale key={`${r.lat},${r.lng}-${i}`} onPress={() => pickRecent(r)} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: t.line2 }}>
+              <ClockIcon />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: t.size.body, color: t.ink }} numberOfLines={1}>{r.label}</Text>
+                {r.area ? <Text style={{ fontSize: t.size.caption, color: t.ink2, marginTop: 1 }} numberOfLines={1}>{r.area}</Text> : null}
+              </View>
+            </PressableScale>
+          ))}
+        </View>
+      )}
       {preds.length > 0 && (
         <View style={{ borderWidth: 1, borderColor: t.line, borderTopWidth: 0, borderBottomLeftRadius: t.radius.md, borderBottomRightRadius: t.radius.md, overflow: 'hidden' }}>
           {preds.map((p) => (

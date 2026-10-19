@@ -74,6 +74,9 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
   const [showCancel, setShowCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [refAcct, setRefAcct] = useState<Account | null>(null);
+  // An order at CREATED isn't necessarily unpaid — a just-finished payment may still be settling
+  // (webhook/confirm lag). Don't alarm the customer until we've confirmed it's genuinely unpaid.
+  const [verifiedUnpaid, setVerifiedUnpaid] = useState(false);
 
   useEffect(() => { getToken().then((tok) => setUid(getUserId(tok))); }, []);
   useEffect(() => { api.getAccount().then(setRefAcct).catch(() => {}); }, []);
@@ -231,6 +234,32 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
   const paySecsLeft = job?.status === 'CREATED' && job.createdAt
     ? Math.max(0, Math.round((Date.parse(job.createdAt) + PAYMENT_WINDOW_MS - payNow) / 1000))
     : 0;
+
+  // Grace/verify window: while an order sits at CREATED, give a just-made payment a chance to confirm
+  // (webhook + our confirm call can lag a few seconds) before we show the "payment not completed"
+  // banner. We poll a little faster during the window; if it leaves CREATED we never show the banner,
+  // and only after the window elapses still-unpaid do we surface it. Reset whenever status changes, and
+  // after each payment attempt (below), so returning from the sheet re-verifies instead of alarming.
+  const PAYMENT_VERIFY_MS = 12_000;
+  useEffect(() => {
+    if (job?.status !== 'CREATED') { setVerifiedUnpaid(false); return; }
+    if (verifiedUnpaid) return;
+    let stop = false;
+    const started = Date.now();
+    const tick = async () => {
+      try {
+        const j = await api.getJob(jobId);
+        if (stop) return;
+        if (j.status !== 'CREATED') { setJob(j); return; }      // paid / advanced — no banner at all
+        if (Date.now() - started >= PAYMENT_VERIFY_MS) setVerifiedUnpaid(true); // confirmed unpaid
+      } catch { /* keep trying within the window */ }
+    };
+    tick();
+    const id = setInterval(() => { if (!stop) tick(); }, 2000);
+    return () => { stop = true; clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.status, verifiedUnpaid, jobId]);
+
   const makePayment = async () => {
     try {
       const returnUrl = createURL('track');
@@ -242,6 +271,7 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
         if (txn && (!status || status === 'successful' || status === 'completed')) {
           try { await api.confirmPayment(jobId, String(txn)); } catch { /* webhook/polling will catch it */ }
         }
+        setVerifiedUnpaid(false); // returned from the sheet — re-verify (don't re-alarm while it settles)
         setJob(await api.getJob(jobId));
       } else if (r.status !== 'CREATED') toast('This order is already paid.', 'success');
     } catch (e) { toast((e as Error).message); }
@@ -293,7 +323,19 @@ export function TrackScreen({ route, navigation }: NativeStackScreenProps<RootSt
           </Card>
         )}
 
-        {job?.status === 'CREATED' && (
+        {/* Grace state: order at CREATED but we haven't yet confirmed it's unpaid — a just-made payment
+            may still be settling. Show a calm "confirming" note instead of the alarming banner. */}
+        {job?.status === 'CREATED' && !verifiedUnpaid && (
+          <Card style={{ marginBottom: 12 }}>
+            <Mono style={{ color: t.ink2, marginBottom: 6 }}>CONFIRMING YOUR PAYMENT…</Mono>
+            <Text style={{ fontSize: t.size.small, color: t.ink2, lineHeight: 19 }}>
+              Hold on a moment while we confirm your payment.
+            </Text>
+          </Card>
+        )}
+
+        {/* Only after the grace window confirms it's genuinely unpaid do we surface the pay-again banner. */}
+        {job?.status === 'CREATED' && verifiedUnpaid && (
           <Card style={{ marginBottom: 12, borderColor: t.primary, borderWidth: 1.5 }}>
             <Mono style={{ color: t.primary, marginBottom: 6 }}>PAYMENT NOT COMPLETED</Mono>
             <Text style={{ fontSize: t.size.body, color: t.ink2, lineHeight: 20, marginBottom: 10 }}>

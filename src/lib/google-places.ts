@@ -52,3 +52,10 @@ export async function details(placeId: string, sessionToken: string): Promise<Re
 export async function reverseGeocode(lat: number, lng: number): Promise<ResolvedPlace> {
   return get<ResolvedPlace>(`/geo/reverse?lat=${lat}&lng=${lng}`);
 }
+
+/** The customer's recent places (Uber-style) — shown the moment an address field is focused, before
+ *  any typing. Derived server-side from their past bookings; already resolved to coordinates. */
+export async function recentPlaces(): Promise<ResolvedPlace[]> {
+  try { return await get<ResolvedPlace[]>(`/jobs/recent-places`); }
+  catch { return []; } // recents are a convenience — never block the field on them
+}
